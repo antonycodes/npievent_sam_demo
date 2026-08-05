@@ -179,7 +179,7 @@ export default function DashboardPage() {
               dimmedIds={dimmedIds}
               overlay={
                 selectedDesk ? (
-                  <DeskPopover desk={selectedDesk} onClose={() => setSelectedId(null)} />
+                  <DeskPopover key={selectedDesk.id} desk={selectedDesk} onClose={() => setSelectedId(null)} />
                 ) : selectedCustomerData ? (
                   <CustomerPopover
                     desk={selectedCustomerData.desk}

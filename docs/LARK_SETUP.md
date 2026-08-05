@@ -2,17 +2,23 @@
 
 > **Cập nhật 2026-08-05 ("no DS Master")**: `DS Master` (bảng DS gộp 4 loại
 > bàn từ lần cập nhật trước) hoá ra là **danh sách nhân sự** (theo xác nhận
-> của người vận hành base), KHÔNG phải trạng thái vận hành theo bàn — app
-> **không đọc bảng đó nữa**. Occupancy/màu bàn/tên NV giờ đọc từ `Master`; số
-> "khách đang chờ" mỗi bàn đọc từ `Master Điều phối`. Sơ đồ web vẫn 11 bàn cố
-> định (KT1–3, TV1–8, không đổi) — mapper tính state cho TỪNG VỊ TRÍ đó trực
-> tiếp, không còn phụ thuộc "match theo dòng của 1 bảng đăng ký" như trước.
+> của người vận hành base), KHÔNG phải trạng thái vận hành theo bàn.
+> Occupancy/màu bàn/tên NV + "Chờ điều phối" giờ đọc từ `Master`; số "khách
+> đang chờ" mỗi bàn đọc từ `Master Điều phối`. Sơ đồ web vẫn 11 bàn cố định
+> (KT1–3, TV1–8, không đổi) — mapper tính state cho TỪNG VỊ TRÍ đó trực tiếp,
+> không còn phụ thuộc "match theo dòng của 1 bảng đăng ký" như trước.
+>
+> **Cập nhật 2026-08-05, tiếp**: `DS Master` quay lại nhưng CHỈ cho đúng 1
+> field ("STT tiếp theo" mỗi bàn — hiện khi bấm vào badge "khách đang chờ").
+> "Chờ điều phối" đổi sang đọc TRỰC TIẾP `Master.Trạng thái` = "Hoàn tất"
+> (không còn qua field riêng ở Check-in). Khu chờ trên sơ đồ tách thành 2 khu
+> riêng "Đã check-in" / "Chờ điều phối" (trước gộp làm 1).
 
 Luồng nghiệp vụ thật: khách check-in ở `Master_Check in` (nhận STT) → điều
 phối viên gán bàn trong `Master Điều phối` → NV tại bàn đó tiếp nhận khách,
-ghi vào `Master`. Dashboard đọc **4 bảng** trong Lark Base (Bitable):
-`Master_Check in`, `Master`, `Master Điều phối`, `Danh sách đơn hàng`. Có
-**2 cách** kết nối:
+ghi vào `Master`. Dashboard đọc **5 bảng** trong Lark Base (Bitable):
+`Master_Check in`, `Master`, `Master Điều phối`, `DS Master` (chỉ 1 field),
+`Danh sách đơn hàng`. Có **2 cách** kết nối:
 
 | Cách | Khi nào dùng | Ưu / Nhược |
 | ---- | ------------ | ---------- |
@@ -25,32 +31,34 @@ ghi vào `Master`. Dashboard đọc **4 bảng** trong Lark Base (Bitable):
 
 App map dữ liệu theo **tên cột hiển thị** trong Lark. Mặc định khớp base hiện
 tại. Nếu base của bạn đặt tên khác → sửa trong `src/config/larkConfig.ts`
-(`DEFAULT_CHECKIN_FIELDS`, `DEFAULT_MASTER_FIELDS`, `DEFAULT_DISPATCH_FIELDS`)
-hoặc trực tiếp qua trang **Cài đặt** trong web (không cần sửa code).
+(`DEFAULT_CHECKIN_FIELDS`, `DEFAULT_MASTER_FIELDS`, `DEFAULT_DISPATCH_FIELDS`,
+`DEFAULT_DS_MASTER_FIELDS`) hoặc trực tiếp qua trang **Cài đặt** trong web
+(không cần sửa code).
 
 **Bảng `Master_Check in`** (trước là `Check in`, tên CỘT giữ nguyên) cần:
 `STT` · `Họ và tên` · `SP 1` · `Note UDTT` · `Check nghiệm thu` ·
-`Thu cũ check` · `Done in Flow` · `End flow` · `Thời gian` ·
-`Status in thu cũ` · `Status in tư vấn`
-(dùng cho số đã check-in + chi tiết khách, join theo tên; 2 cột `Status in
-...` chỉ dùng để phát hiện "vừa hoàn tất 1 khâu, chưa được điều phối tiếp").
+`Thu cũ check` · `Done in Flow` · `End flow` · `Thời gian`
+(dùng cho số đã check-in + chi tiết khách, join theo tên). Không còn cần cột
+"Status in thu cũ"/"Status in tư vấn" — "Chờ điều phối" giờ đọc thẳng từ
+`Master` (xem dưới).
 
 **Bảng `Master`** — log mỗi lần 1 NV nhận 1 khách tại 1 bàn (nguồn DUY NHẤT
-xác định khách đang ở bàn nào + màu bàn + tên NV). Cần:
+xác định khách đang ở bàn nào + màu bàn + tên NV + "Chờ điều phối"). Cần:
 
 | Ý nghĩa | Tên cột |
 | ------- | ------- |
 | Mã bàn | `TV_MãNV` — PHẢI khớp đúng mã bàn (`TC1`, `TV2`...), không phải tên loại |
-| Trạng thái | `Trạng thái` — `Tiếp nhận` = đang phục vụ, `Hoàn tất` = xong (bỏ qua khi tính màu, nhưng vẫn cần có dòng — xem lưu ý dưới) |
+| Trạng thái | `Trạng thái` — `Tiếp nhận` = đang phục vụ (màu đỏ) · `Hoàn tất` = NV vừa xong khách này → khách vào khu "Chờ điều phối" |
 | Tên khách | `Họ và tên` — join sang `Master_Check in` theo tên để lấy đủ chi tiết |
 | NV phụ trách | `Người` (person field) — hiện lên popover "Tên NV" |
 | Thời gian | `Thời gian` — sắp thứ tự khi 1 bàn phục vụ nhiều khách cùng lúc |
 
 > ⚠️ **Mọi khách từng được tiếp nhận (kể cả đã "Hoàn tất") đều cần có dòng ở
-> đây** — app dùng chính bảng này để biết "khách đã từng xuất hiện chưa" (loại
-> khỏi khu "Chờ check-in"). Nếu quy trình Lark của bạn xoá dòng sau khi khách
-> xong việc thay vì đổi `Trạng thái` thành "Hoàn tất", khách đó sẽ bị hiện
-> nhầm là "chưa từng check-in".
+> đây** — app dùng chính bảng này để biết (a) "khách đã từng xuất hiện chưa"
+> (loại khỏi khu "Chờ check-in") và (b) "khách nào cần vào khu Chờ điều phối"
+> (dòng `Trạng thái` = "Hoàn tất"). Nếu quy trình Lark của bạn xoá dòng sau
+> khi khách xong việc thay vì đổi `Trạng thái` thành "Hoàn tất", khách đó sẽ
+> không hiện ở khu "Chờ điều phối" và bị hiểu nhầm là "chưa từng check-in".
 
 **Bảng `Master Điều phối`** — khách đã được điều phối viên GÁN vào 1 bàn cụ
 thể nhưng CHƯA có dòng "Tiếp nhận" tương ứng trong `Master` → nguồn số
@@ -66,6 +74,13 @@ Mỗi dòng chỉ có ĐÚNG 1 trong 2 cột mã bàn ở trên khác rỗng (tu
 gán cụm nào) — app tự đọc cả 2 cột trên mọi dòng nên không cần cột "Phân
 loại" riêng.
 
+**Bảng `DS Master`** — CHỈ đọc đúng 1 field, không dùng gì khác từ bảng này:
+
+| Ý nghĩa | Tên cột |
+| ------- | ------- |
+| Mã bàn | `STT bàn` — khoá join, khớp mã bàn trên sơ đồ |
+| STT tiếp theo | `STT tiếp theo` — hiện khi bấm vào badge "khách đang chờ" ở popover bàn |
+
 **Bảng `Danh sách đơn hàng`**: chỉ cần **số dòng** = tổng khách đăng ký (Số tổng)
 cho phễu check-in ở sidebar. Không cần cột cụ thể.
 
@@ -80,8 +95,8 @@ Lark → trả JSON về. Token/secret nằm ở server, an toàn.
 ### 1.1 Web gọi endpoint như thế nào
 
 App sẽ `GET ${VITE_LARK_API_URL}/<tableKey>` với `tableKey` ∈
-`checkin` · `orders` · `master` · `dispatch` — chỉ 4 route này, TẤT CẢ đều
-bắt buộc (không còn route tùy chọn nào).
+`checkin` · `orders` · `master` · `dispatch` · `dsMaster` — chỉ 5 route này,
+TẤT CẢ đều bắt buộc (không còn route tùy chọn nào).
 
 Mỗi endpoint phải trả về đúng **envelope list-records của Lark**:
 
@@ -101,11 +116,11 @@ VITE_LARK_POLL_MS=30000
 
 ### 1.3 Ví dụ proxy — dùng luôn `cloudflare-worker.js` trong repo
 
-File `cloudflare-worker.js` ở gốc repo đã code sẵn đúng 4 route trên, có cache
+File `cloudflare-worker.js` ở gốc repo đã code sẵn đúng 5 route trên, có cache
 token, và tự dò/đổi **wiki node token → app_token thật** (xem cảnh báo dưới) —
 deploy bằng `npx wrangler deploy cloudflare-worker.js`, đặt các secret:
 `LARK_APP_ID`, `LARK_APP_SECRET`, `LARK_HOST`, `LARK_APP_TOKEN`,
-`TB_CHECKIN`, `TB_ORDERS`, `TB_MASTER`, `TB_DISPATCH`.
+`TB_CHECKIN`, `TB_ORDERS`, `TB_MASTER`, `TB_DISPATCH`, `TB_DS_MASTER`.
 
 **Tên biến (Name) trong Cloudflare phải khớp CHÍNH XÁC các tên trên** — lỗi
 rất hay gặp là gõ nhầm Name thành giá trị (vd đặt Name = `tblXXXX` thay vì
@@ -146,7 +161,7 @@ https://xxx.larksuite.com/base/<APP_TOKEN>?table=<TABLE_ID>&view=...
 
 - `APP_TOKEN` = đoạn sau `/base/`.
 - `TABLE_ID` = tham số `table=` (mở lần lượt `Master_Check in`/`Master`/
-  `Master Điều phối`/`Danh sách đơn hàng` để lấy 4 id).
+  `Master Điều phối`/`DS Master`/`Danh sách đơn hàng` để lấy 5 id).
 
 ⚠️ **Nếu URL của bạn là `.../wiki/<token>?table=...`** (base nhúng trong Lark
 Wiki, không phải `.../base/<token>`) thì đoạn sau `/wiki/` là **wiki node
@@ -188,6 +203,7 @@ VITE_LARK_ACCESS_TOKEN=<tenant_access_token>
 VITE_LARK_TABLE_CHECKIN=<table_id Master_Check in>
 VITE_LARK_TABLE_MASTER=<table_id Master>
 VITE_LARK_TABLE_DISPATCH=<table_id Master Điều phối>
+VITE_LARK_TABLE_DS_MASTER=<table_id DS Master>
 VITE_LARK_TABLE_ORDERS=<table_id Danh sách đơn hàng>
 VITE_LARK_POLL_MS=30000
 ```

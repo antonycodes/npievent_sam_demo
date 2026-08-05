@@ -10,6 +10,7 @@ import {
   CHECKIN_LABELS,
   DISPATCH_DESK_FIELD_LABELS,
   DISPATCH_FIELD_LABEL,
+  DS_MASTER_FIELD_LABELS,
   MASTER_FIELD_LABELS,
   TABLE_LABELS,
   defaultSettings,
@@ -20,7 +21,7 @@ import {
   type ConnMode,
   type LarkSettings,
 } from '@/config/larkSettings';
-import type { CheckinFieldMap, MasterFieldMap } from '@/config/larkConfig';
+import type { CheckinFieldMap, DsMasterFieldMap, MasterFieldMap } from '@/config/larkConfig';
 import { fetchLarkData } from '@/services/larkService';
 import { mapDeskStates } from '@/services/larkMapper';
 import type { TableKey } from '@/services/larkTypes';
@@ -60,6 +61,9 @@ export default function SettingsPage() {
 
   const setDispatchNameField = (v: string) =>
     setDraft((d) => ({ ...d, fields: { ...d.fields, dispatch: { ...d.fields.dispatch, name: v } } }));
+
+  const setDsMasterField = (k: keyof DsMasterFieldMap, v: string) =>
+    setDraft((d) => ({ ...d, fields: { ...d.fields, dsMaster: { ...d.fields.dsMaster, [k]: v } } }));
 
   const save = () => {
     larkSettingsStore.save(clone(draft));
@@ -150,7 +154,7 @@ export default function SettingsPage() {
                   placeholder="https://proxy-cua-ban/api/lark"
                   value={draft.apiUrl}
                   onChange={(v) => setTop('apiUrl', v)}
-                  hint="Client gọi {URL}/checkin, /orders, /master, /dispatch — hoặc bấm Quét QR"
+                  hint="Client gọi {URL}/checkin, /orders, /master, /dispatch, /dsMaster — hoặc bấm Quét QR"
                 />
               </div>
               <QrScanButton onScan={(v) => setTop('apiUrl', v.trim())} />
@@ -232,6 +236,17 @@ export default function SettingsPage() {
               value={draft.fields.dispatch.deskField.consult}
               onChange={(v) => setDispatchDeskField('consult', v)}
             />
+          </MapBlock>
+
+          <MapBlock title='DS Master (CHỈ dùng field "STT tiếp theo" — mọi field khác của bảng này bỏ qua)'>
+            {(Object.keys(DS_MASTER_FIELD_LABELS) as Array<keyof DsMasterFieldMap>).map((k) => (
+              <Input
+                key={k}
+                label={DS_MASTER_FIELD_LABELS[k]}
+                value={draft.fields.dsMaster[k]}
+                onChange={(v) => setDsMasterField(k, v)}
+              />
+            ))}
           </MapBlock>
         </Section>
 

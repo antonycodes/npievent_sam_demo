@@ -43,19 +43,22 @@ export interface LarkListResponse {
 }
 
 /**
- * The four logical tables the dashboard reads (2026-08-05, "no DS Master"
- * revision — `DS Master` turned out to be a personnel roster the app doesn't
- * need, not a per-desk registry):
+ * The five logical tables the dashboard reads (2026-08-05, "no DS Master"
+ * revision — `DS Master` turned out to be a personnel roster the app mostly
+ * doesn't need, not a per-desk registry):
  *   - `checkin` reads `Master_Check in` — customer identity + detail (STT,
  *     SP, ghi chú, nghiệm thu…), joined by name.
  *   - `master` reads `Master` — who's being served at which desk (`TV_MãNV`
  *     = desk code, `Trạng thái`, `Người` = staff) — the authoritative source
- *     for occupancy + staff name (see `larkMapper.ts`'s `indexMasterByDeskCode`).
+ *     for occupancy + staff name (see `larkMapper.ts`'s `indexMasterByDeskCode`),
+ *     and "Chờ điều phối" (`Trạng thái` = Hoàn tất).
  *   - `dispatch` reads `Master Điều phối` — customers assigned to a desk but
  *     not yet picked up (drives the per-desk waiting count).
  *   - `orders` reads "Danh sách đơn hàng" (total registered, for the funnel).
+ *   - `dsMaster` reads `DS Master` — ONLY the "STT tiếp theo" field per desk
+ *     (2026-08-05, tiếp — added back for this one field specifically).
  */
-export type TableKey = 'checkin' | 'orders' | 'master' | 'dispatch';
+export type TableKey = 'checkin' | 'orders' | 'master' | 'dispatch' | 'dsMaster';
 
 /** Raw records for every table, as returned by the service. */
 export type LarkTables = Record<TableKey, LarkRecord[]>;

@@ -102,14 +102,15 @@ khung gộp vẫn nhớ khu vực gốc (`checkin`/`dispatch`) để mở đúng
 
 ## 5. Nguồn dữ liệu Lark & Schema
 
-> ⚠️ **Phần dưới đã CŨ** (mô tả schema trước 2026-08-05, kể cả bản "Master"
-> đầu tiên cùng ngày mô tả trong warning cũ ở đây). Base thật giờ KHÔNG dùng
-> `DS Master` nữa (hoá ra là danh sách nhân sự) — occupancy/màu bàn/tên NV đọc
-> từ bảng `Master`, số "khách đang chờ" mỗi bàn đọc từ `Master Điều phối`.
-> Board tính state cho 11 vị trí cố định trực tiếp, không còn "match theo dòng
-> DS" như mô tả ở §5.2 dưới. Xem `README.md` § Kiến trúc dữ liệu,
-> `docs/LARK_SETUP.md`, và `src/config/larkConfig.ts`/`larkMapper.ts`'s module
-> doc cho thông tin ĐÚNG hiện tại — phần dưới giữ lại để tham khảo lịch sử.
+> ⚠️ **Phần dưới đã CŨ** (mô tả schema trước 2026-08-05, kể cả các bản "Master"
+> mô tả trong warning cũ ở đây). Base thật giờ dùng `DS Master` CHỈ cho 1 field
+> ("STT tiếp theo" mỗi bàn) — occupancy/màu bàn/tên NV/"Chờ điều phối" đọc từ
+> bảng `Master`, số "khách đang chờ" mỗi bàn đọc từ `Master Điều phối`. Board
+> tính state cho 11 vị trí cố định trực tiếp, không còn "match theo dòng DS"
+> như mô tả ở §5.2 dưới. Khu chờ trên sơ đồ cũng tách thành 2 khu riêng ("Đã
+> check-in"/"Chờ điều phối", trước gộp 1). Xem `README.md` § Kiến trúc dữ
+> liệu, `docs/LARK_SETUP.md`, và `src/config/larkConfig.ts`/`larkMapper.ts`'s
+> module doc cho thông tin ĐÚNG hiện tại — phần dưới giữ lại để tham khảo lịch sử.
 
 App đọc **5 bảng** (map từ workbook thật `NPI_Testing_2.2`; không còn `DS backup`):
 

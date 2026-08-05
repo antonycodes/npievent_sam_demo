@@ -4,18 +4,20 @@
  * Deploy: `npx wrangler deploy cloudflare-worker.js` (hoặc dán vào Workers editor).
  * Biến bí mật đặt bằng `wrangler secret put <NAME>` hoặc trong dashboard Workers:
  *   LARK_APP_ID, LARK_APP_SECRET, LARK_HOST, LARK_APP_TOKEN,
- *   TB_CHECKIN, TB_ORDERS, TB_MASTER, TB_DISPATCH
+ *   TB_CHECKIN, TB_ORDERS, TB_MASTER, TB_DISPATCH, TB_DS_MASTER
  *
  * Dashboard trỏ vào:  API URL = https://<worker>.workers.dev/api/lark
  * (Worker lấy tên bảng ở segment cuối, nên /api/lark/<table> hay /<table> đều được.)
  *
  * **Schema (2026-08-05, "no DS Master")**: `TB_CHECKIN` = table id của
  * "Master_Check in". `TB_MASTER` = table id của bảng "Master" (log NV tiếp
- * nhận khách theo bàn — nguồn xác định khách đang ở bàn nào + màu bàn).
- * `TB_DISPATCH` = table id của "Master Điều phối" (khách đã gán bàn, chờ NV
- * nhận — nguồn số "khách đang chờ" mỗi bàn). **KHÔNG cần** `TB_DS_TRADEIN`/
- * `TB_DS_CONSULT`/"DS Master" nữa — bảng đó hoá ra là danh sách nhân sự, web
- * không đọc (xem `src/config/larkConfig.ts`'s module doc).
+ * nhận khách theo bàn — nguồn xác định khách đang ở bàn nào + màu bàn + "Chờ
+ * điều phối"). `TB_DISPATCH` = table id của "Master Điều phối" (khách đã gán
+ * bàn, chờ NV nhận — nguồn số "khách đang chờ" mỗi bàn).
+ *
+ * **`TB_DS_MASTER`** (thêm lại 2026-08-05, tiếp) = table id của "DS Master" —
+ * web CHỈ đọc đúng 1 field ("STT tiếp theo" mỗi bàn) từ bảng này, không dùng
+ * cho occupancy/status/staff nữa (những cái đó đọc từ `Master`).
  *
  * **Base nhúng trong Wiki**: nếu bạn lấy `LARK_APP_TOKEN` từ 1 URL dạng
  * `.../wiki/<token>?table=...` (không phải `.../base/<token>?table=...`),
@@ -31,6 +33,7 @@ const TABLE_ENV = {
   orders: 'TB_ORDERS',
   master: 'TB_MASTER',
   dispatch: 'TB_DISPATCH',
+  dsMaster: 'TB_DS_MASTER',
 };
 
 let cachedToken = null;

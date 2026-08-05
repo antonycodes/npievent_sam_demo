@@ -11,10 +11,13 @@
  * được gán) → NV tại bàn đó tiếp nhận khách, ghi vào `Master` (`TV_MãNV` = mã
  * bàn, khớp thẳng `TablePosition.id`; `Người` = NV; `Trạng thái` =
  * Tiếp nhận/Hoàn tất). `DS Master` (bảng DS cũ, gộp 4 loại bàn) hoá ra là
- * **danh sách nhân sự** (roster), KHÔNG phải trạng thái vận hành theo bàn —
- * app KHÔNG đọc bảng đó nữa. Occupancy/màu bàn/tên NV đọc từ `Master`; số
- * "khách đang chờ" mỗi bàn đọc từ `Master Điều phối` (đã gán bàn nhưng chưa
- * có dòng "Tiếp nhận" tương ứng trong `Master`) — xem `larkMapper.ts`.
+ * **danh sách nhân sự** (roster), KHÔNG phải trạng thái vận hành theo bàn.
+ * Occupancy/màu bàn/tên NV đọc từ `Master`; số "khách đang chờ" mỗi bàn đọc
+ * từ `Master Điều phối` (đã gán bàn nhưng chưa có dòng "Tiếp nhận" tương ứng
+ * trong `Master`) — xem `larkMapper.ts`. Riêng field "STT tiếp theo" (mỗi
+ * bàn) VẪN đọc từ `DS Master` (`DsMasterFieldMap`, thêm lại 2026-08-05 theo
+ * yêu cầu rõ của user) — hiện khi bấm vào badge "khách đang chờ" ở popover;
+ * không dùng bảng đó cho bất cứ việc gì khác.
  *
  * Board vẫn chỉ có 11 vị trí cố định (`layoutConfig.ts`'s `ALL_POSITIONS`) —
  * mapper giờ tính state cho TỪNG VỊ TRÍ đó trực tiếp, không còn "match theo
@@ -48,14 +51,6 @@ export interface CheckinFieldMap {
   endFlow: string;
   /** Thời điểm check-in — dùng để sắp khách theo thứ tự trước/sau khi 1 NV phục vụ nhiều khách cùng lúc. */
   time: string;
-  /**
-   * Trạng thái khách ở từng cụm — "Hoàn tất" nghĩa là vừa xong khâu đó, dùng
-   * để phát hiện "Chờ điều phối" (xem `larkMapper.ts`'s `completedCandidates`).
-   * KHÔNG dùng để xác định khách đang ở bàn nào — việc đó đọc trực tiếp từ
-   * bảng `Master`.
-   */
-  statusTradein: string;
-  statusConsult: string;
 }
 
 /**
@@ -86,11 +81,23 @@ export interface DispatchFieldMap {
   name: string;
 }
 
+/**
+ * `DS Master` — QUAY LẠI (2026-08-05, tiếp) nhưng CHỈ đọc đúng 1 field: "STT
+ * tiếp theo" mỗi bàn, theo yêu cầu rõ của user — bảng này KHÔNG dùng cho bất
+ * cứ việc gì khác (occupancy/staff/status vẫn đọc từ `Master` như trước, xem
+ * module doc). `code` là khoá join theo mã bàn, giống `MasterFieldMap.deskCode`.
+ */
+export interface DsMasterFieldMap {
+  code: string;
+  nextStt: string;
+}
+
 /** All field maps bundled — what the mapper needs. */
 export interface FieldConfig {
   checkin: CheckinFieldMap;
   master: MasterFieldMap;
   dispatch: DispatchFieldMap;
+  dsMaster: DsMasterFieldMap;
 }
 
 // Cột nguồn giờ là bảng "Master_Check in" (trước là "Check in") — TÊN CỘT
@@ -106,8 +113,6 @@ export const DEFAULT_CHECKIN_FIELDS: CheckinFieldMap = {
   doneInFlow: 'Done in Flow',
   endFlow: 'End flow',
   time: 'Thời gian',
-  statusTradein: 'Status in thu cũ',
-  statusConsult: 'Status in tư vấn',
 };
 
 export const DEFAULT_MASTER_FIELDS: MasterFieldMap = {
@@ -123,10 +128,15 @@ export const DEFAULT_DISPATCH_FIELDS: DispatchFieldMap = {
   name: 'Họ và tên',
 };
 
-/** Giá trị `Trạng thái` (Master) / `Status in <cụm>` (Master_Check in) nghĩa là "đang được tiếp nhận". */
+export const DEFAULT_DS_MASTER_FIELDS: DsMasterFieldMap = {
+  code: 'STT bàn',
+  nextStt: 'STT tiếp theo',
+};
+
+/** Giá trị `Master.Trạng thái` nghĩa là "đang được tiếp nhận". */
 export const STATUS_RECEIVED = 'Tiếp nhận';
 
-/** Giá trị `Status in <cụm>` (Master_Check in) nghĩa là bàn vừa hoàn tất 1 khách. */
+/** Giá trị `Master.Trạng thái` nghĩa là NV vừa xong 1 khách — nguồn "Chờ điều phối". */
 export const STATUS_COMPLETED = 'Hoàn tất';
 
 /** Bitable table ids, one per logical table (direct mode). */
@@ -157,5 +167,6 @@ export const ENV_DEFAULTS = {
     orders: (env.VITE_LARK_TABLE_ORDERS as string | undefined) || '',
     master: (env.VITE_LARK_TABLE_MASTER as string | undefined) || '',
     dispatch: (env.VITE_LARK_TABLE_DISPATCH as string | undefined) || '',
+    dsMaster: (env.VITE_LARK_TABLE_DS_MASTER as string | undefined) || '',
   } as Record<TableKey, string>,
 } as const;

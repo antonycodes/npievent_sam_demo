@@ -9,10 +9,12 @@ import type { TableKey } from '@/services/larkTypes';
 import {
   DEFAULT_CHECKIN_FIELDS,
   DEFAULT_DISPATCH_FIELDS,
+  DEFAULT_DS_MASTER_FIELDS,
   DEFAULT_MASTER_FIELDS,
   ENV_DEFAULTS,
   type CheckinFieldMap,
   type DispatchFieldMap,
+  type DsMasterFieldMap,
   type FieldConfig,
   type LarkRuntimeConfig,
   type MasterFieldMap,
@@ -34,6 +36,7 @@ export interface LarkSettings {
     checkin: CheckinFieldMap;
     master: MasterFieldMap;
     dispatch: DispatchFieldMap;
+    dsMaster: DsMasterFieldMap;
   };
 }
 
@@ -53,6 +56,7 @@ export function defaultSettings(): LarkSettings {
       checkin: { ...DEFAULT_CHECKIN_FIELDS },
       master: { ...DEFAULT_MASTER_FIELDS },
       dispatch: { deskField: { ...DEFAULT_DISPATCH_FIELDS.deskField }, name: DEFAULT_DISPATCH_FIELDS.name },
+      dsMaster: { ...DEFAULT_DS_MASTER_FIELDS },
     },
   };
 }
@@ -73,6 +77,7 @@ function hydrate(raw: unknown): LarkSettings {
         deskField: { ...base.fields.dispatch.deskField, ...(p.fields?.dispatch?.deskField ?? {}) },
         name: p.fields?.dispatch?.name ?? base.fields.dispatch.name,
       },
+      dsMaster: { ...base.fields.dsMaster, ...(p.fields?.dsMaster ?? {}) },
     },
   };
 }
@@ -135,6 +140,7 @@ export function toRuntimeConfig(s: LarkSettings = settings): LarkRuntimeConfig {
     orders: str(s.tableIds.orders),
     master: str(s.tableIds.master),
     dispatch: str(s.tableIds.dispatch),
+    dsMaster: str(s.tableIds.dsMaster),
   };
   return {
     useMock: s.useMock,
@@ -152,6 +158,7 @@ export function toFieldConfig(s: LarkSettings = settings): FieldConfig {
     checkin: s.fields.checkin,
     master: s.fields.master,
     dispatch: s.fields.dispatch,
+    dsMaster: s.fields.dsMaster,
   };
 }
 
@@ -166,6 +173,7 @@ export const DEFAULT_FIELD_CONFIG: FieldConfig = {
   checkin: DEFAULT_CHECKIN_FIELDS,
   master: DEFAULT_MASTER_FIELDS,
   dispatch: DEFAULT_DISPATCH_FIELDS,
+  dsMaster: DEFAULT_DS_MASTER_FIELDS,
 };
 
 export const CHECKIN_LABELS: Record<keyof CheckinFieldMap, string> = {
@@ -178,8 +186,6 @@ export const CHECKIN_LABELS: Record<keyof CheckinFieldMap, string> = {
   doneInFlow: 'Done in Flow (khâu vừa hoàn tất)',
   endFlow: 'End flow (đã xong toàn bộ quy trình)',
   time: 'Thời gian check-in (để sắp thứ tự)',
-  statusTradein: 'Status in thu cũ (cụm Kỹ thuật — dùng cho "Chờ điều phối")',
-  statusConsult: 'Status in tư vấn (dùng cho "Chờ điều phối")',
 };
 
 export const MASTER_FIELD_LABELS: Record<keyof MasterFieldMap, string> = {
@@ -196,11 +202,17 @@ export const DISPATCH_DESK_FIELD_LABELS: Record<ClusterKey, string> = {
   consult: 'Cột mã bàn — Tư vấn (vd "DS Tư vấn")',
 };
 
+export const DS_MASTER_FIELD_LABELS: Record<keyof DsMasterFieldMap, string> = {
+  code: 'Mã bàn (khớp mã bàn trên sơ đồ)',
+  nextStt: 'STT tiếp theo',
+};
+
 export const TABLE_LABELS: Record<TableKey, string> = {
   checkin: 'Check in (bảng "Master_Check in")',
   orders: 'Danh sách đơn hàng',
   master: 'Master (NV tiếp nhận khách theo bàn)',
   dispatch: 'Master Điều phối (khách đã gán bàn, chờ NV nhận)',
+  dsMaster: 'DS Master (chỉ dùng field "STT tiếp theo")',
 };
 
 export type { ClusterKey };

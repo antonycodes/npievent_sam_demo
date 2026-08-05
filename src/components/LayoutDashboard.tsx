@@ -3,12 +3,14 @@
  *
  * Renders a 16:9 stage mirroring the new KT/Tư vấn floor-plan reference: 2
  * dashed zone boxes (Khu vực kỹ thuật, Khu vực tư vấn) as a backdrop, plus the
- * 11 interactive desks (driven by the `desks` array), plus 1 merged waiting-area
- * box (khách nhận STT và đợi) on the right for customers not yet assigned to a
- * desk. The waiting box renders as a FIXED grid of slots (empty ones stay
- * visible) — per user feedback (2026-07-31), positions must stay stable and
- * fill left-to-right instead of reflowing. Each desk's own customer row, by
- * contrast, only shows actual customers (no empty placeholder dots) — per
+ * 11 interactive desks (driven by the `desks` array), plus 2 STACKED waiting
+ * boxes on the right — "Đã check-in" (top half, `waitingCheckin`) and "Chờ
+ * điều phối" (bottom half, `waitingDispatch`) — split into 2 separate zones
+ * per user feedback (2026-08-05; previously 1 merged box). Each only renders
+ * dots for ACTUAL waiting customers, no empty placeholder slots (2026-08-05,
+ * tiếp — reverses the 2026-07-31 "always show a fixed 24-slot grid" decision,
+ * to match how desk rows already behave: see below). Each desk's own customer
+ * row likewise only shows actual customers (no empty placeholder dots) — per
  * user feedback (2026-08-03), which removed the dashed empty-slot circles
  * that used to pad every Tư vấn desk row up to its capacity. "End Flow" (đã
  * hoàn tất toàn bộ) is a separate table view, not a board zone — see
@@ -58,8 +60,8 @@ function ZoneBox({ label, className }: { label: string; className: string }) {
 }
 
 /**
- * 1 ô STT — cam (có khách, bấm được) hoặc rỗng/viền chấm (chưa có khách,
- * không tương tác). `size`/`fontSize` là giá trị CSS thật (vd `'var(--dot)'`)
+ * 1 ô STT (cam, luôn có khách thật — không còn ô rỗng/viền chấm nào, xem
+ * module doc). `size`/`fontSize` là giá trị CSS thật (vd `'var(--dot)'`)
  * truyền qua inline style — KHÔNG ghép vào class Tailwind, vì class dựng động
  * lúc runtime (`` `h-[${x}]` ``) không được Tailwind quét thấy lúc build nên
  * sẽ không sinh CSS tương ứng.
@@ -71,24 +73,12 @@ function SttSlot({
   size,
   fontSize,
 }: {
-  customer: DeskCustomer | null;
+  customer: DeskCustomer;
   active?: boolean;
   onClick?: () => void;
   size: string;
   fontSize: string;
 }) {
-  if (!customer) {
-    return (
-      <span
-        title="Còn trống"
-        // `block` bắt buộc phải có — span vốn `inline`, width/height inline sẽ bị
-        // trình duyệt BỎ QUA trên phần tử inline (chỉ "ăn" trong flex/grid item).
-        // Bug thật đã gặp: ô trống co thành 1 vạch mỏng khi cha không phải flex.
-        className="block shrink-0 rounded-full border border-dashed border-amber-300 bg-amber-100/40"
-        style={{ height: size, width: size }}
-      />
-    );
-  }
   return (
     <button
       type="button"
@@ -106,39 +96,35 @@ function SttSlot({
   );
 }
 
-/** 1 khách chờ, gắn kèm khu vực gốc + vị trí trong mảng đó (để bấm mở đúng popover). */
-interface WaitingItem {
-  zone: WaitingZoneKey;
-  index: number;
-  customer: WaitingCustomer;
-}
-
-/** Số ô cố định trong khu "Khách nhận STT và đợi" — lưới 4 cột × 6 hàng. */
-const WAITING_GRID_SIZE = 24;
+/** Số ô cố định trong MỖI khu chờ (Đã check-in / Chờ điều phối) — lưới 4 cột × 3 hàng. */
+const WAITING_GRID_SIZE = 12;
 const WAITING_GRID_COLS = 4;
 
 /**
- * Toạ độ board (%) của từng ô trong lưới chờ STT — đo trực tiếp trên trang
- * chạy thật (getBoundingClientRect, không đoán qua mắt): cột cách đều 8.05%
- * từ x=68.38%, hàng cách đều 9.88% từ y=26.23% (khớp khung hộp
- * `left-[64%] top-[3%] h-[92%] w-[33%]` bên dưới). Tính tường minh — KHÔNG
- * còn dựa vào CSS Grid tự chia — để mỗi ô có toạ độ thật, dùng làm điểm neo
- * popup khi bấm vào (trước đó popup neo 1 điểm cố định chung cho cả khu vực
- * nên xa hẳn các ô ở hàng trên).
+ * Toạ độ board (%) của từng ô trong 1 lưới chờ STT — tính tường minh (không
+ * dùng CSS Grid tự chia) để mỗi ô có toạ độ THẬT, dùng làm điểm neo popup khi
+ * bấm vào (giống cách mọi bàn/chấm khác đã làm — xem lịch sử 2026-07-31).
+ * `x0`/`y0`/`xStep`/`yStep` truyền riêng cho từng khu (2 khu xếp chồng dọc).
  */
-const WAITING_GRID_X0 = 68.38;
-const WAITING_GRID_X_STEP = 8.05;
-const WAITING_GRID_Y0 = 26.23;
-const WAITING_GRID_Y_STEP = 9.88;
-const WAITING_GRID_POSITIONS: Array<{ x: number; y: number }> = Array.from(
-  { length: WAITING_GRID_SIZE },
-  (_, i) => ({
-    x: WAITING_GRID_X0 + (i % WAITING_GRID_COLS) * WAITING_GRID_X_STEP,
-    y: WAITING_GRID_Y0 + Math.floor(i / WAITING_GRID_COLS) * WAITING_GRID_Y_STEP,
-  }),
-);
+function buildWaitingGrid(x0: number, y0: number, xStep: number, yStep: number): Array<{ x: number; y: number }> {
+  return Array.from({ length: WAITING_GRID_SIZE }, (_, i) => ({
+    x: x0 + (i % WAITING_GRID_COLS) * xStep,
+    y: y0 + Math.floor(i / WAITING_GRID_COLS) * yStep,
+  }));
+}
 
-/** Khung nét đứt cho khu chờ STT — chỉ nhãn + số đếm; 24 ô render riêng (board-relative, xem WAITING_GRID_POSITIONS). */
+// Cột: giống hệt bản gộp cũ (đo thật 2026-07-31: cách đều 8.05% từ x=68.38%).
+const WAITING_X0 = 68.38;
+const WAITING_X_STEP = 8.05;
+
+// 2 khu xếp CHỒNG DỌC trong cùng cột phải — đo thật bằng getBoundingClientRect
+// sau khi dựng khung (xem memory.md): khung "Đã check-in" top-[3%] h-[44%],
+// khung "Chờ điều phối" top-[49%] h-[46%] (đáy khớp đáy cột trái, giống bản
+// gộp cũ kết thúc ở ~95%).
+const CHECKIN_GRID_POSITIONS = buildWaitingGrid(WAITING_X0, 15.5, WAITING_X_STEP, 9.5);
+const DISPATCH_GRID_POSITIONS = buildWaitingGrid(WAITING_X0, 61.5, WAITING_X_STEP, 9.5);
+
+/** Khung nét đứt cho 1 khu chờ STT — chỉ nhãn + số đếm; các ô render riêng (board-relative). */
 function WaitingZoneBox({ label, count, className }: { label: string; count: number; className: string }) {
   return (
     <div className={`absolute rounded-lg border border-dashed border-amber-300 bg-amber-50/60 ${className}`}>
@@ -149,6 +135,68 @@ function WaitingZoneBox({ label, count, className }: { label: string; count: num
         )}
       </div>
     </div>
+  );
+}
+
+/** 1 khu chờ hoàn chỉnh: khung + nhãn + lưới ô STT + tràn — dùng chung cho cả 2 khu (checkin/dispatch). */
+function WaitingZoneGrid({
+  zone,
+  label,
+  items,
+  positions,
+  boxClassName,
+  selectedWaiting,
+  onSelectWaiting,
+}: {
+  zone: WaitingZoneKey;
+  label: string;
+  items: WaitingCustomer[];
+  positions: Array<{ x: number; y: number }>;
+  boxClassName: string;
+  selectedWaiting?: { zone: WaitingZoneKey; index: number } | null;
+  onSelectWaiting?: (zone: WaitingZoneKey, index: number, anchor: { x: number; y: number }) => void;
+}) {
+  const hasOverflow = items.length > WAITING_GRID_SIZE;
+  const slotCount = WAITING_GRID_SIZE - (hasOverflow ? 1 : 0);
+  const shown = items.slice(0, slotCount);
+  const overflow = items.length - shown.length;
+
+  return (
+    <>
+      <WaitingZoneBox label={label} count={items.length} className={boxClassName} />
+      {shown.map((customer, i) => {
+        const pos = positions[i];
+        const active = selectedWaiting?.zone === zone && selectedWaiting?.index === i;
+        return (
+          <div
+            key={`wait-${zone}-${i}`}
+            className="absolute z-20 -translate-x-1/2 -translate-y-1/2"
+            style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
+          >
+            <SttSlot
+              customer={customer}
+              active={active}
+              onClick={() => onSelectWaiting?.(zone, i, pos)}
+              size="var(--zone-dot)"
+              fontSize="var(--zone-dot-fs)"
+            />
+          </div>
+        );
+      })}
+      {hasOverflow && (
+        <div
+          className="absolute z-20 -translate-x-1/2 -translate-y-1/2"
+          style={{ left: `${positions[slotCount].x}%`, top: `${positions[slotCount].y}%` }}
+        >
+          <span
+            title={`Thêm ${overflow} khách`}
+            className="flex h-[var(--zone-dot)] w-[var(--zone-dot)] shrink-0 items-center justify-center rounded-full bg-amber-700 px-[3px] text-[length:var(--zone-dot-fs)] font-bold leading-none text-white shadow ring-1 ring-white"
+          >
+            +{overflow}
+          </span>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -165,19 +213,6 @@ export default function LayoutDashboard({
   dimmedIds,
   overlay,
 }: LayoutDashboardProps) {
-  const combinedWaiting: WaitingItem[] = [
-    ...waitingCheckin.map((customer, index): WaitingItem => ({ zone: 'checkin', index, customer })),
-    ...waitingDispatch.map((customer, index): WaitingItem => ({ zone: 'dispatch', index, customer })),
-  ];
-  const waitingHasOverflow = combinedWaiting.length > WAITING_GRID_SIZE;
-  const waitingSlotCount = WAITING_GRID_SIZE - (waitingHasOverflow ? 1 : 0);
-  const waitingShown = combinedWaiting.slice(0, waitingSlotCount);
-  const waitingOverflow = combinedWaiting.length - waitingShown.length;
-  const waitingCells: Array<WaitingItem | null> = Array.from(
-    { length: waitingSlotCount },
-    (_, i) => waitingShown[i] ?? null,
-  );
-
   return (
     <div className="board relative aspect-video w-full [@media(max-aspect-ratio:8/5)]:aspect-[2360/1640]">
       {/* Board visuals clip to the rounded card; popovers stay outside this
@@ -192,52 +227,25 @@ export default function LayoutDashboard({
             2 hàng (toạ độ hàng đã đo thật, xem layoutConfig.ts). ── */}
         <ZoneBox label="Khu vực tư vấn" className="left-[4%] top-[28%] h-[67%] w-[57%]" />
 
-        {/* ── Khu vực khách nhận STT và đợi (gộp "Đã check-in" + "Chờ điều phối") ── */}
-        <WaitingZoneBox
-          label="Khách nhận STT và đợi"
-          count={combinedWaiting.length}
-          className="left-[64%] top-[3%] h-[92%] w-[33%]"
+        {/* ── 2 khu chờ STT xếp chồng dọc (thay 1 khu gộp cũ, 2026-08-05) ── */}
+        <WaitingZoneGrid
+          zone="checkin"
+          label="Đã check-in"
+          items={waitingCheckin}
+          positions={CHECKIN_GRID_POSITIONS}
+          boxClassName="left-[64%] top-[3%] h-[44%] w-[33%]"
+          selectedWaiting={selectedWaiting}
+          onSelectWaiting={onSelectWaiting}
         />
-
-        {/* ── 24 ô STT cố định — mỗi ô neo board-relative đúng vị trí của nó
-            (WAITING_GRID_POSITIONS), để popup bấm vào bung ra ngay tại đó
-            thay vì 1 điểm neo chung xa các ô hàng trên. ── */}
-        {waitingCells.map((item, i) => {
-          const pos = WAITING_GRID_POSITIONS[i];
-          const active =
-            Boolean(item) && selectedWaiting?.zone === item!.zone && selectedWaiting?.index === item!.index;
-          return (
-            <div
-              key={`wait-${i}`}
-              className="absolute z-20 -translate-x-1/2 -translate-y-1/2"
-              style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
-            >
-              <SttSlot
-                customer={item?.customer ?? null}
-                active={active}
-                onClick={() => item && onSelectWaiting?.(item.zone, item.index, pos)}
-                size="var(--zone-dot)"
-                fontSize="var(--zone-dot-fs)"
-              />
-            </div>
-          );
-        })}
-        {waitingHasOverflow && (
-          <div
-            className="absolute z-20 -translate-x-1/2 -translate-y-1/2"
-            style={{
-              left: `${WAITING_GRID_POSITIONS[waitingSlotCount].x}%`,
-              top: `${WAITING_GRID_POSITIONS[waitingSlotCount].y}%`,
-            }}
-          >
-            <span
-              title={`Thêm ${waitingOverflow} khách`}
-              className="flex h-[var(--zone-dot)] w-[var(--zone-dot)] shrink-0 items-center justify-center rounded-full bg-amber-700 px-[3px] text-[length:var(--zone-dot-fs)] font-bold leading-none text-white shadow ring-1 ring-white"
-            >
-              +{waitingOverflow}
-            </span>
-          </div>
-        )}
+        <WaitingZoneGrid
+          zone="dispatch"
+          label="Chờ điều phối"
+          items={waitingDispatch}
+          positions={DISPATCH_GRID_POSITIONS}
+          boxClassName="left-[64%] top-[49%] h-[46%] w-[33%]"
+          selectedWaiting={selectedWaiting}
+          onSelectWaiting={onSelectWaiting}
+        />
 
         {/* ── Interactive desks (9) ─────────────────────────────────── */}
         {desks.map((d) => (

@@ -1546,3 +1546,164 @@ Khách đang tiếp nhận (1/4): #5 Võ Xuân Phong · Khách đang chờ: 1". 
 Sidebar "Tư vấn 8/8 bàn" (trước đây "6/8", giờ luôn full vì `hasData` không
 còn phụ thuộc dòng DS nào). Không console error (ngoài log HMR cũ từ các
 bước sửa dở dang trước đó, đã xác nhận là buffer cũ qua reload cứng).
+
+### 3 fix theo yêu cầu user: "Chờ điều phối" đọc thẳng Master, tách khu chờ làm 2, DS Master quay lại cho đúng 1 field (2026-08-05, tiếp #3)
+User liệt kê 1 đoạn yêu cầu ngắn, gộp nhiều ý — tách ra đúng 3 việc trước khi
+sửa (không gộp code 1 lượt cho cả 3 vì mỗi việc rủi ro khác nhau):
+
+**1. "Chờ điều phối" đọc thẳng `Master.Trạng thái` = "Hoàn tất"** — trước đó
+(mục #2 phía trên) đang đọc `Check-in`'s `Status in thu cũ`/`Status in tư
+vấn` (field formula riêng). User muốn đổi sang đọc TRỰC TIẾP từ `Master` —
+hợp lý vì `Master` là nguồn NV tự tay ghi, đáng tin hơn 1 formula phụ có thể
+lệch nhịp. Thêm `clusterFromDeskCode()` (suy cụm từ tiền tố mã bàn TC/TV) để
+thay cho việc lặp theo `CLUSTERS` + đọc field theo cụm như cũ — đơn giản hơn
+vì giờ chỉ cần 1 vòng lặp qua `tables.master`. Hệ quả dọn dẹp: `CheckinFieldMap`
+bỏ hẳn `statusTradein`/`statusConsult` (chết hoàn toàn), `CLUSTERS` const
+trong mapper cũng dead sau đó (bỏ luôn — bắt bằng grep, không đoán).
+
+**2. Khu chờ tách làm 2** ("Đã check-in" trên / "Chờ điều phối" dưới, xếp
+chồng dọc) — thay bản gộp `WaitingItem[]` cũ (quyết định hồi 2026-07-31, giờ
+đảo ngược theo yêu cầu mới). Viết lại `LayoutDashboard.tsx`: bỏ hẳn
+`combinedWaiting`, thêm component dùng chung `WaitingZoneGrid` (nhận
+`zone`/`items`/`positions`/`boxClassName` riêng) render 2 lần — vừa tránh lặp
+code vừa đảm bảo 2 khu xử lý y hệt nhau (overflow, active state...). Lưới mỗi
+khu giảm từ 24 ô (4×6) xuống 12 ô (4×3) — hợp lý vì chiều cao mỗi khu chỉ còn
+~1 nửa. Toạ độ MỚI đo thật bằng `getBoundingClientRect` qua Browser pane sau
+khi dựng khung đầu tiên (không đoán): khung "Đã check-in" đo được top 3.2%–
+bottom 47.0%, khung "Chờ điều phối" 49.0%–94.8% — khớp gần như chính xác với
+giá trị đặt trong code (top-[3%] h-[44%] và top-[49%] h-[46%]), 3 hàng ô mỗi
+khung đều nằm gọn trong khung, không đè lên nhau hay lên nhãn.
+
+**3. "Sl khách chờ" bấm vào hiện "STT tiếp theo" từ `DS Master`** — điểm gây
+tranh cãi nhất trong cả phiên: DS Master vừa được xác nhận tuần trước là
+"chỉ dùng cho nhân sự, web không đọc" (mục #2), giờ user lại nhắc đích danh
+field "STT tiếp theo" TRONG DS Master. Hỏi lại 2 lượt bằng `AskUserQuestion`
+(không đoán, dù đã có sẵn cách tính khác không cần DS Master — liệt kê rõ 2
+lựa chọn) — user xác nhận CHẮC CHẮN muốn đọc field thật trong DS Master, 2
+lần liền, nên tin theo dù trái với quyết định trước đó (quyết định cũ SAI vì
+thiếu thông tin lúc đó, không phải user đổi ý tuỳ tiện — DS Master hoá ra có
+CẢ vai trò nhân sự LẪN 1 cột thống kê theo bàn (STT tiếp theo), 2 việc khác
+nhau không loại trừ nhau).
+
+**File đã sửa**:
+- `services/larkMapper.ts`: thêm `clusterFromDeskCode()`; viết lại
+  `completedCandidates` đọc `tables.master` (`Trạng thái`="Hoàn tất") thay vì
+  lặp `CLUSTERS`+Check-in; bỏ `CLUSTERS` const + `STATUS_FIELD` (dead); thêm
+  `indexNextSttByDeskCode()` (đọc `tables.dsMaster`, map mã bàn → STT tiếp
+  theo) + gắn vào `statesById[code].nextWaitingStt`.
+- `config/larkConfig.ts`: `CheckinFieldMap` bỏ `statusTradein`/`statusConsult`;
+  thêm `DsMasterFieldMap` (`code`+`nextStt`) + `DEFAULT_DS_MASTER_FIELDS`
+  (`STT bàn`+`STT tiếp theo`) + `dsMaster` vào `FieldConfig`; comment module
+  doc cập nhật lại vai trò DS Master (2 dòng: KHÔNG dùng cho occupancy, NHƯNG
+  dùng cho STT tiếp theo).
+- `services/larkTypes.ts`: `TableKey` thêm `'dsMaster'` (5 giá trị).
+- `services/larkService.ts`: `KEYS` thêm `'dsMaster'`.
+- `config/larkSettings.ts`: thêm `dsMaster: DsMasterFieldMap` vào mọi chỗ
+  (shape/default/hydrate/toFieldConfig/DEFAULT_FIELD_CONFIG); bỏ
+  `statusTradein`/`statusConsult` khỏi `CHECKIN_LABELS`; thêm
+  `DS_MASTER_FIELD_LABELS`; `TABLE_LABELS` thêm `dsMaster`.
+- `pages/SettingsPage.tsx`: thêm khối map "DS Master" (2 input); hint API URL
+  thêm `/dsMaster`.
+- `types/desk.ts`: `DeskLiveState` thêm `nextWaitingStt: string | null`.
+- `components/DeskPopover.tsx`: dòng "Khách đang chờ" đổi từ `<Row>` tĩnh
+  sang `<button>` — bấm toggle `showNext` (local state) giữa hiện số lượng và
+  hiện `nextWaitingStt`. Thêm `key={selectedDesk.id}` ở `DashboardPage.tsx`
+  lúc render `DeskPopover` để reset `showNext` khi đổi sang bàn khác (không
+  reset thì trạng thái toggle của bàn trước sẽ dính sang bàn sau, vì React
+  không tự unmount/remount component cùng loại không đổi `key`).
+- `components/LayoutDashboard.tsx`: viết lại toàn bộ phần khu chờ — bỏ
+  `WaitingItem`/`combinedWaiting`, thêm `buildWaitingGrid()` (hàm tạo lưới
+  tường minh, tham số hoá x0/y0/step để dùng lại cho 2 khu) +
+  `WaitingZoneGrid` (component gộp khung+nhãn+lưới+tràn, dùng chung cho cả 2
+  khu qua prop `zone`).
+- `cloudflare-worker.js`: `TABLE_ENV` thêm `dsMaster: 'TB_DS_MASTER'`.
+- `data/mockLarkData.ts`: bỏ field `Status in thu cũ` khỏi fixture check-in
+  (dead); thêm dòng `Trạng thái`="Hoàn tất" cho Vũ Xuân Phong trong `master`
+  (ma_8 đã có sẵn từ mục #2 — giờ chính dòng đó tự động drive "Chờ điều phối"
+  luôn, không cần thêm gì); thêm mảng `dsMaster` (2 dòng: TV4→"7", TV6→"8",
+  khớp đúng STT của khách đang chờ ở `dispatch` để demo có ý nghĩa).
+- Docs (`README.md`, `docs/LARK_SETUP.md`, `docs/PROJECT_OVERVIEW.md`): thêm
+  bảng `DS Master` (1 field), route `dsMaster`, `TB_DS_MASTER`/
+  `VITE_LARK_TABLE_DS_MASTER`; sửa mô tả "Chờ điều phối" + khu chờ tách 2.
+
+**Verify**: `tsc -b --noEmit` + `npm run build` sạch sau mỗi bước lớn. Browser
+(mock, đo bằng `getBoundingClientRect` qua `javascript_tool`, không đoán qua
+ảnh chụp):
+- 2 khung chờ không đè nhau, lưới 3 hàng mỗi khung nằm gọn trong khung (số đo
+  cụ thể ở mục 2 phía trên).
+- Bấm "#6 Vũ Xuân Phong" ở khung "Chờ điều phối" → popover đúng "Khu vực: Chờ
+  điều phối · Trạng thái: Đã hoàn tất 'Khâu Thu cũ'" — xác nhận
+  `clusterFromDeskCode('TC1')` → `kythuat` đúng, và `doneInFlow` (từ
+  Check-in) vẫn hoạt động bình thường qua đường mới.
+- Bấm bàn TV4 → popover hiện "Khách đang chờ: 1" (nút, có gạch chân chấm) →
+  bấm vào → đổi thành "STT tiếp theo: 7" — đúng giá trị fixture, xác nhận
+  toggle + `indexNextSttByDeskCode` hoạt động đúng end-to-end.
+- Không console error thật (ngoài buffer HMR cũ đã biết).
+
+### Bug thật từ dữ liệu live: khách Hoàn tất vẫn kẹt ở bàn Tư vấn + bỏ ô trống sẵn ở 2 khu chờ (2026-08-05, tiếp #4)
+User test với dữ liệu Lark thật (không phải mock), báo: STT4 đã được ghi nhận
+"Hoàn tất" trong `Master` nhưng bàn Tư vấn 1 vẫn hiện đang bận với khách đó.
+Kèm ảnh chụp 2 ô tròn viền chấm màu vàng (rỗng) ở khu chờ, yêu cầu bỏ hẳn ô
+trống sẵn.
+
+**Root cause (không đoán — soát lại đúng logic `indexMasterByDeskCode`)**:
+hàm lọc "có DÒNG NÀO đó trong `Master` = Tiếp nhận" cho cặp (bàn, khách), mà
+KHÔNG xét dòng nào MỚI NHẤT. Nếu Lark của user ghi 1 DÒNG MỚI mỗi lần đổi
+trạng thái (Tiếp nhận → Hoàn tất) thay vì sửa lại dòng cũ — rất có thể đúng
+vậy vì dòng "Tiếp nhận" cũ không được chủ động xoá — thì dòng Tiếp nhận cũ
+vẫn còn đó và vẫn khớp filter, khiến khách bị "kẹt" ở bàn dù đã có dòng Hoàn
+tất mới hơn cho đúng cặp đó. Đây là lỗi thiết kế từ lần viết `Master`-driven
+mapper trước (mục #2), không phải lỗi mới phát sinh — chỉ lộ ra khi test với
+dữ liệu thật (mock trước giờ luôn chỉ có 1 dòng/cặp nên không bắt được).
+
+**Fix**: thêm `latestByDeskAndName()` — gom theo cặp (mã bàn, tên khách),
+chỉ giữ dòng có `Thời gian` LỚN NHẤT. Gọi 1 LẦN trong `mapDeskStates`, dùng
+chung cho cả occupancy (`indexMasterByDeskCode`, giờ nhận thẳng danh sách đã
+dedupe thay vì tự lọc theo Trạng thái) LẪN `completedCandidates` ("Chờ điều
+phối" — trước đọc thẳng `tables.master` không dedupe, có thể hiện sai
+`fromCluster` nếu khách có nhiều dòng Hoàn tất ở nhiều bàn khác nhau theo thời
+gian). Tránh tính 2 lần cùng 1 việc.
+
+**Khu chờ bỏ ô trống sẵn**: đảo ngược quyết định 2026-07-31 ("luôn hiện lưới
+cố định, ô trống vẫn hiện") — giờ áp dụng đúng cách đã làm cho chấm dưới bàn
+từ 2026-08-03 (chỉ vẽ khách thật, không pad). Sửa `WaitingZoneGrid`: bỏ hẳn
+mảng `cells` (trước pad `null` cho đủ `slotCount`), giờ chỉ `map` qua mảng
+`shown` (khách thật). Hệ quả: nhánh rỗng của `SttSlot` (hình tròn viền chấm)
+trở thành DEAD CODE — verify bằng cách rà lại MỌI nơi gọi `SttSlot` trong file
+(khu chờ + chấm dưới bàn) trước khi xoá, xác nhận cả 2 nơi giờ chỉ truyền
+khách thật — xoá hẳn nhánh đó + đổi type `customer` từ `DeskCustomer | null`
+thành `DeskCustomer` (bắt buộc), không giữ lại "phòng khi cần sau này".
+
+**File đã sửa**:
+- `services/larkMapper.ts`: thêm `MasterRow` interface + `latestByDeskAndName()`;
+  `indexMasterByDeskCode` đổi tham số từ `rows: LarkRecord[]` sang
+  `latestRows: MasterRow[]` (đã dedupe từ ngoài truyền vào); `completedCandidates`
+  đổi từ lặp `tables.master` sang lặp `latestMasterRows` (biến dùng chung, tính
+  1 lần trong `mapDeskStates`).
+- `components/LayoutDashboard.tsx`: `SttSlot` bỏ nhánh `!customer` (dead) +
+  đổi type param bắt buộc; `WaitingZoneGrid` bỏ `cells`/padding, map thẳng
+  `shown`; cập nhật module doc (đảo ngược quyết định 2026-07-31, giải thích
+  rõ vì sao đổi).
+- `data/mockLarkData.ts`: thêm demo TÁI TẠO ĐÚNG bug thật — "Đặng Gia Hân"
+  (STT11, trước là demo "chờ check-in" đơn thuần) giờ có 2 dòng `master` tại
+  TV1: `Tiếp nhận` lúc 11500 rồi `Hoàn tất` lúc 12000 (dòng MỚI, không sửa
+  dòng cũ — đúng cách dữ liệu thật của user). Thêm `Done in Flow: 'Tư vấn'`
+  vào `ci_11` để popover "Chờ điều phối" hiện đúng tên khâu thay vì rỗng.
+
+**Verify bằng browser (mock, dựng lại đúng ca lỗi thật trước khi sửa để chắc
+chắn tái hiện được, rồi sửa, rồi verify lại)**:
+- TV1 chuyển từ ĐỎ (bug) → XANH (đúng) sau khi thêm dedupe — bấm vào: "Trống
+  · Tên NV: — · Bàn trống — chưa có thông tin khách" (đúng, không còn dính
+  khách cũ).
+- Khu "Chờ điều phối" tăng từ "1" → "2", thêm đúng "#11" — bấm vào: "#11 ·
+  Đặng Gia Hân · Khu vực: Chờ điều phối · Trạng thái: Đã hoàn tất 'Khâu Tư
+  vấn'" — đúng dữ liệu, đúng khâu.
+- Khu "Đã check-in" hiện HOÀN TOÀN RỖNG (không số đếm, không chấm nào, không
+  còn viền chấm vàng nào) — đúng yêu cầu bỏ ô trống sẵn; 2 khách còn lại
+  (STT7/8) đã dispatch vào bàn riêng nên không còn trong khu chung.
+- `tsc -b --noEmit` + `npm run build` sạch. Không console error thật.
+- **Chưa verify được với dữ liệu Lark thật của user** (chỉ tái hiện + verify
+  qua mock) — cần user tự confirm lại trên bản live sau khi deploy code mới,
+  vì nguyên nhân gốc (Lark ghi dòng mới thay vì sửa dòng cũ) là suy luận hợp
+  lý nhất dựa trên triệu chứng, không phải điều đã thấy trực tiếp trong dữ
+  liệu live của họ (không có quyền truy cập base thật).

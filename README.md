@@ -8,10 +8,15 @@ thái bàn từ **Lark Base (Bitable)** qua HTTPS, tự cập nhật mỗi 30 gi
 
 - **11 bàn tương tác**: 3 Kỹ thuật (KT1–KT3) · 8 Tư vấn (TV1–TV8). Cụm Kỹ thuật
   thay cho "Thu cũ" cũ và đọc đúng bảng Lark đó, không đổi; không còn cụm Backup.
-- **Màu trạng thái**: `Sl … tiếp nhận > 0` → **Đỏ** (đang tiếp nhận), ngược lại →
-  **Xanh** (trống); **Xám** = chưa có dữ liệu. Badge cam = số khách đang chờ.
+- **Màu trạng thái**: có khách "Tiếp nhận" tại bàn trong `Master` → **Đỏ**,
+  ngược lại → **Xanh**. Badge cam = số khách đang chờ (có thể hiện cả trên
+  bàn trống).
 - **Click bàn → popover chi tiết**: Tên NV · STT Khách · Tên sản phẩm (SP 1) ·
-  Ghi chú thanh toán · Khách đang chờ.
+  Ghi chú thanh toán · Khách đang chờ (**bấm vào số này để xem "STT tiếp
+  theo"** thay vì số lượng).
+- **2 khu chờ tách riêng**: "Đã check-in" (chưa được điều phối vào bàn nào) và
+  "Chờ điều phối" (vừa hoàn tất 1 khâu, chưa được điều phối tiếp) — xếp chồng
+  dọc, mỗi khu 1 lưới 4×3 ô STT riêng.
 - **Sidebar**: Tổng khách đã Check-in + breakdown Tiếp nhận/Trống/Chờ mỗi cụm.
 - **Bộ lọc nhanh**: "Chỉ hiện bàn trống", "Chỉ hiện bàn KT".
 - **Auto-refresh 30s** (polling) + thanh trạng thái đồng bộ.
@@ -28,7 +33,7 @@ Mở link **"Cài đặt Lark"** ở header. Cho phép cấu hình **runtime** (
    điền link bằng camera điện thoại — không cần gõ tay) hoặc **Direct API**
    (Host, App Token, Access Token + Table ID) + chu kỳ làm mới.
 3. **Ánh xạ trường**: điền tên cột Lark cho từng trường web (Check in +
-   Master + Master Điều phối). Để trống = dùng mặc định.
+   Master + Master Điều phối + DS Master). Để trống = dùng mặc định.
 4. **Kiểm tra kết nối** (thử fetch, báo số bàn/check-in/đơn), **Lưu & đồng bộ**,
    **Khôi phục mặc định**.
 
@@ -52,25 +57,28 @@ npm run preview  # xem bản build
 
 > **Cập nhật 2026-08-05 ("no DS Master")**: `DS Master` (bảng DS cũ, gộp 4
 > loại bàn) hoá ra là **danh sách nhân sự**, không phải trạng thái vận hành
-> theo bàn — web **không đọc bảng đó nữa**. Occupancy/màu bàn/tên NV giờ đọc
-> từ `Master`; số "khách đang chờ" mỗi bàn đọc từ `Master Điều phối`. Sơ đồ
-> vẫn 11 bàn cố định (KT1–3, TV1–8) — mapper tính state cho từng vị trí đó
-> trực tiếp, không còn "match theo dòng của 1 bảng đăng ký" như trước.
+> theo bàn. Occupancy/màu bàn/tên NV + "Chờ điều phối" giờ đọc từ `Master`; số
+> "khách đang chờ" mỗi bàn đọc từ `Master Điều phối`. Sơ đồ vẫn 11 bàn cố định
+> (KT1–3, TV1–8) — mapper tính state cho từng vị trí đó trực tiếp, không còn
+> "match theo dòng của 1 bảng đăng ký" như trước. `DS Master` quay lại
+> (2026-08-05, tiếp) nhưng CHỈ cho đúng 1 field — "STT tiếp theo" mỗi bàn.
 
 Luồng nghiệp vụ thật: khách check-in ở **`Master_Check in`** (nhận STT) →
 điều phối viên gán bàn trong **`Master Điều phối`** → NV tại bàn đó tiếp
-nhận khách, ghi vào **`Master`**. App đọc 4 bảng:
+nhận khách, ghi vào **`Master`**. App đọc 5 bảng:
 
 | Vai trò       | Bảng                | Dùng cho                                             |
 | ------------- | -------------------- | ----------------------------------------------------- |
 | Check-in      | `Master_Check in`    | STT, chi tiết khách (SP, ghi chú, nghiệm thu…), join theo tên |
-| NV tiếp nhận  | `Master`             | Khách nào đang ở bàn nào (`TV_MãNV`) + tên NV + màu bàn |
+| NV tiếp nhận  | `Master`             | Khách nào đang ở bàn nào (`TV_MãNV`) + tên NV + màu bàn + "Chờ điều phối" |
 | Điều phối     | `Master Điều phối`   | Khách đã gán bàn nhưng chưa được nhận → số "khách đang chờ" mỗi bàn |
+| STT tiếp theo | `DS Master`          | CHỈ field "STT tiếp theo" — hiện khi bấm vào badge "khách đang chờ" |
 | Đăng ký       | `Danh sách đơn hàng` | Tổng số đăng ký (mẫu số phễu)                         |
 
 - **Màu bàn**: có ≥ 1 khách "Tiếp nhận" tại bàn đó trong `Master` → Đỏ, ngược lại → Xanh.
 - **Tên NV** ở popover lấy từ `Master.Người` của khách đang được tiếp nhận — bàn trống không hiện tên NV nào.
-- **Badge "khách đang chờ"** hiện ở CẢ bàn trống lẫn bàn đang bận — miễn là có khách được `Master Điều phối` gán vào bàn đó mà chưa có dòng "Tiếp nhận" tương ứng.
+- **"Chờ điều phối"**: khách có dòng `Master.Trạng thái` = "Hoàn tất" (đọc TRỰC TIẾP từ `Master`, không qua field riêng ở Check-in nữa).
+- **Badge "khách đang chờ"** hiện ở CẢ bàn trống lẫn bàn đang bận — miễn là có khách được `Master Điều phối` gán vào bàn đó mà chưa có dòng "Tiếp nhận" tương ứng. Bấm vào số này để xem "STT tiếp theo" (từ `DS Master`).
 - **Base nhúng trong Lark Wiki**: nếu link base của bạn là `.../wiki/<token>`
   thay vì `.../base/<token>`, xem cảnh báo trong `docs/LARK_SETUP.md` — cần
   đổi sang app_token thật trước khi gọi API (proxy mẫu trong repo tự làm việc
@@ -85,18 +93,19 @@ Copy `.env.example` → `.env.local`:
 
 - **Mode 1 (khuyến nghị):** `VITE_LARK_API_URL` = proxy/webhook HTTPS do bạn kiểm
   soát. Client gọi `${VITE_LARK_API_URL}/<tableKey>` với `tableKey` ∈
-  `checkin orders master dispatch` — cả 4 route đều **bắt buộc**; `checkin`
-  trỏ vào "Master_Check in", `master` trỏ vào "Master", `dispatch` trỏ vào
-  "Master Điều phối". Mỗi endpoint trả JSON list-records của Lark. (Giữ
-  secret server-side, tránh CORS. Dùng luôn `cloudflare-worker.js` trong
-  repo — đã code sẵn cả 4 route + tự xử lý base nhúng Wiki.)
+  `checkin orders master dispatch dsMaster` — cả 5 route đều **bắt buộc**;
+  `checkin` trỏ vào "Master_Check in", `master` trỏ vào "Master", `dispatch`
+  trỏ vào "Master Điều phối", `dsMaster` trỏ vào "DS Master". Mỗi endpoint trả
+  JSON list-records của Lark. (Giữ secret server-side, tránh CORS. Dùng luôn
+  `cloudflare-worker.js` trong repo — đã code sẵn cả 5 route + tự xử lý base
+  nhúng Wiki.)
 - **Mode 2 (trực tiếp):** `VITE_LARK_APP_TOKEN` + `VITE_LARK_ACCESS_TOKEN` +
   các biến `VITE_LARK_TABLE_*` (mỗi Table_ID).
 - Không cấu hình gì → chạy mock data đi kèm. `VITE_LARK_POLL_MS` mặc định 30000.
 
 Tên cột mặc định khớp schema hiện tại và nằm trong `src/config/larkConfig.ts`
-(`DEFAULT_CHECKIN_FIELDS` / `DEFAULT_MASTER_FIELDS` / `DEFAULT_DISPATCH_FIELDS`)
-— sửa ở đó nếu base của bạn đặt tên cột khác.
+(`DEFAULT_CHECKIN_FIELDS` / `DEFAULT_MASTER_FIELDS` / `DEFAULT_DISPATCH_FIELDS`
+/ `DEFAULT_DS_MASTER_FIELDS`) — sửa ở đó nếu base của bạn đặt tên cột khác.
 
 ## Cấu trúc
 

@@ -3,10 +3,12 @@
  *
  * Shows staff + the active customer's info for the coordinator:
  * Tên NV, STT Khách, Tên sản phẩm (SP 1), Ghi chú thanh toán, plus occupancy
- * and waiting count. Flips above/below by vertical position, clamps near edges,
- * and closes on the × button or Escape.
+ * and waiting count. The waiting count is clickable — toggles to show
+ * `nextWaitingStt` ("STT tiếp theo", from DS Master) instead of the number.
+ * Flips above/below by vertical position, clamps near edges, and closes on
+ * the × button or Escape.
  */
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { CLUSTER_LABELS } from '@/config/layoutConfig';
 import { DESK_CAPACITY, deskUiStatus, type DeskData } from '@/types/desk';
 
@@ -27,6 +29,8 @@ function translateX(x: number): string {
 }
 
 export default function DeskPopover({ desk, onClose }: DeskPopoverProps) {
+  const [showNext, setShowNext] = useState(false);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
@@ -116,7 +120,21 @@ export default function DeskPopover({ desk, onClose }: DeskPopoverProps) {
             </div>
           )}
           {(desk.waiting ?? 0) > 0 && (
-            <Row label="Khách đang chờ" value={String(desk.waiting)} tone="amber" />
+            <div className="flex justify-between gap-3">
+              <dt className="shrink-0 text-neutral-500">
+                {showNext ? 'STT tiếp theo' : 'Khách đang chờ'}
+              </dt>
+              <dd>
+                <button
+                  type="button"
+                  onClick={() => setShowNext((v) => !v)}
+                  title={showNext ? 'Bấm để xem lại số lượng' : 'Bấm để xem STT tiếp theo'}
+                  className="font-medium text-amber-600 underline decoration-dotted underline-offset-2 hover:text-amber-700"
+                >
+                  {showNext ? (desk.nextWaitingStt ?? '—') : desk.waiting}
+                </button>
+              </dd>
+            </div>
           )}
         </dl>
 

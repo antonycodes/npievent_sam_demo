@@ -78,6 +78,8 @@ export interface DeskLiveState {
   staffName: string | null;
   /** Số khách đã gán vào bàn này (`Master Điều phối`) nhưng chưa có dòng "Tiếp nhận" trong `Master`. */
   waiting: number;
+  /** `DS Master."STT tiếp theo"` của bàn này — hiện khi bấm vào badge "khách đang chờ". */
+  nextWaitingStt: string | null;
   /** Text hiển thị cho dòng "Trạng thái" ở popover — suy trực tiếp từ `isOccupied`, không đọc field Lark nào. */
   currentStatus: string | null;
   /** true nếu có ≥ 1 khách đang "Tiếp nhận" tại bàn này trong `Master`. */
