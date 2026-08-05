@@ -1438,3 +1438,111 @@ nhận (2/2): #1 Nguyễn Minh Long, #9 Hoàng Anh Tú" — verify tận nội d
 popover, không chỉ nhìn số chấm. Chưa test được với proxy thật của user (còn
 đang debug cấu hình phía họ) — cần user tự chạy "Kiểm tra kết nối" lại sau khi
 sửa Cloudflare secrets + đợi worker mới deploy.
+
+### Bỏ hẳn "DS Master" — hoá ra là danh sách nhân sự, không phải trạng thái vận hành (2026-08-05, tiếp #2)
+User debug proxy thật tiếp, dẫn tới phát hiện quan trọng: đưa list field
+mapping đầy đủ cho user recheck (theo đúng tinh thần "không đoán, để user xác
+nhận từng bảng") — user sửa lại: `dsTradein`/`dsConsult` phải đọc bảng
+**"Master"**, còn **"DS Master"** (bảng tôi từng dùng cho code/staff/status)
+**là danh sách NHÂN SỰ**, không phải trạng thái bàn. Không đoán tiếp — hỏi lại
+2 lượt bằng `AskUserQuestion` trước khi sửa lớn (đã sai hướng nhiều lần trong
+phiên này, chi phí hỏi thêm rẻ hơn nhiều so với sửa sai lần nữa):
+1. Màu bàn + "Sl khách chờ" (trước đọc từ DS Master) giờ lấy từ đâu nếu
+   dsTradein/dsConsult đổi sang đọc "Master"? → **Màu bàn: tính lại từ
+   Master** (đã có sẵn `indexMasterByDeskCode`, chỉ cần dùng `hasActiveGroup`
+   làm nguồn thay vì đọc field `Trạng thái hiện tại`). **"Sl khách chờ": đọc
+   từ Master Điều phối** (đếm khách đã gán vào bàn qua cột `DS Thu cũ`/`DS Tư
+   vấn` nhưng CHƯA có dòng "Tiếp nhận" tương ứng trong Master) — không có
+   cách tính từ Master đơn thuần vì cột `Trạng thái` ở đó CHỈ có 2 lựa chọn
+   tĩnh (`Tiếp nhận`/`Hoàn tất`, verify bằng cách giải mã field def thật,
+   không đoán) — không có khái niệm "đang chờ".
+2. Tên NV phụ trách bàn (popover) lấy từ đâu? → **Từ `Master.Người`, CHỈ khi
+   đang có khách "Tiếp nhận"** — bàn trống không hiện tên NV nào. Xác nhận
+   DS Master **không còn vai trò gì** trong app nữa (đúng tinh thần "chỉ làm
+   việc với table Master" user yêu cầu từ đầu).
+
+**Phát hiện kỹ thuật quan trọng khi giải mã `Master Điều phối`** (trước khi
+code, không đoán): cột `DS Tư vấn`/`DS thu cũ`/`DS Back up` trong bảng này là
+**synced single-select** trỏ tới các bảng DS **CŨ** (`DS Tư vấn`/`DS thu cũ`/
+`DS backup` — chưa gộp vào DS Master, tức chính bảng Lark của user vẫn đang
+**mid-migration**, chưa rewire hết). Ban đầu lo ngại việc này buộc phải đọc
+lại field option của bảng cũ để resolve — nhưng nhận ra: option id nội bộ
+(`opt...`) chỉ xuất hiện trong **file export/backup `.base`** (định dạng
+snapshot riêng của Lark); **REST API công khai** (`bitable/v1/.../records`
+mà app thực sự gọi) trả single-select dưới dạng TEXT THẬT (vd `"TV3"`) bất kể
+field đó static hay synced-option — nên code KHÔNG cần xử lý gì đặc biệt, cứ
+đọc `cellToString` như mọi field text khác. Bài học: đừng nhầm cách biểu diễn
+dữ liệu trong file backup nội bộ với cách API thật trả về — chỉ cái sau mới
+ảnh hưởng code.
+
+**Kiến trúc mới**: bỏ hẳn khái niệm bảng "DS *" — mapper giờ lặp trực tiếp
+qua `layoutConfig.ALL_POSITIONS` (11 vị trí cố định) thay vì lặp theo dòng
+của 1 bảng đăng ký. Mỗi vị trí tự tính state từ `Master` (occupancy + NV) +
+`Master Điều phối` (chờ). 3 tầng "đang chờ" giờ tách bạch rõ, không trùng
+nhau: chưa điều phối đi đâu (`waitingCheckin`, khu chung) → đã điều phối vào
+1 bàn, chờ NV nhận (badge cam ngay tại bàn đó, MỚI — hiện được cả khi bàn
+đang TRỐNG, không chỉ khi đang bận) → đang được phục vụ. `dispatchedNames`
+(set) dùng để loại người đã điều phối khỏi cả 2 khu chờ chung (`waitingCheckin`
++ `waitingDispatch`), tránh đếm trùng với badge riêng của bàn.
+
+**File đã sửa** (ngoài các file đã liệt kê ở 2 mục trước):
+- `types/desk.ts`: `DeskLiveState` bỏ `received`/`completed` (không còn
+  nguồn dữ liệu, mà 2 field này TRƯỚC ĐÓ ĐÃ KHÔNG hề được render ở UI —
+  verify lại 1 lần nữa qua grep, xác nhận xoá an toàn); `waiting`/
+  `currentStatus`/`hasData` đổi hẳn ý nghĩa (xem comment mới). `ClusterSummary.
+  withData` giờ luôn = `total` (mọi bàn đều được tính state).
+- `services/larkTypes.ts`: `TableKey` còn đúng 4 giá trị:
+  `checkin | orders | master | dispatch` (bỏ hẳn `dsTradein`/`dsConsult`).
+- `config/larkConfig.ts`: viết lại gần như toàn bộ — bỏ `DsFieldMap`/
+  `DsTypeFieldMap`/`DsStatusFieldMap`/`ds`/`dsType`/`dsStatus` khỏi
+  `FieldConfig`; `CheckinFieldMap` bỏ tiếp không còn gì cần bỏ (staffTradein/
+  staffConsult đã bỏ ở mục trước); `MasterFieldMap` thêm field `staff`
+  ('Người'); thêm mới `DispatchFieldMap` (`deskField: {kythuat, consult}` +
+  `name`) + `DEFAULT_DISPATCH_FIELDS`; bỏ `STATUS_OCCUPIED_HINT`/
+  `STATUS_FREE_HINT` (dead code từ trước, phát hiện qua grep, không liên
+  quan tới lần sửa này nhưng dọn luôn vì đang viết lại file).
+- `services/larkMapper.ts`: viết lại toàn bộ — import `ALL_POSITIONS` từ
+  `layoutConfig.ts` (không import ngược, xác nhận không có cycle); vòng lặp
+  chính đổi từ "lặp theo dòng DS, filter theo Loại" sang "lặp theo
+  `ALL_POSITIONS`, tra `Map` theo mã bàn"; `indexMasterByDeskCode` trả thêm
+  `staff` per group; thêm `indexDispatchByDeskCode` (đọc cả 2 cột mã bàn trên
+  mọi dòng, an toàn vì mỗi dòng chỉ có đúng 1 cột khác rỗng); `waitingCheckin`/
+  `waitingDispatch` thêm điều kiện loại trừ `dispatchedNames`.
+- `services/larkService.ts`: `KEYS` còn `['checkin','orders','master',
+  'dispatch']`.
+- `config/larkSettings.ts`: viết lại `LarkSettings.fields` (bỏ hẳn 3 field ds*,
+  thêm `dispatch: DispatchFieldMap`); `TABLE_LABELS`/labels tương ứng.
+- `pages/SettingsPage.tsx`: bỏ hẳn 3 block map DS/Loại/Status; thêm block
+  "Master Điều phối" (tên khách + 2 cột mã bàn theo cụm).
+- `data/mockLarkData.ts`: viết lại hoàn toàn — bỏ `dsRecords()`/`dsKythuat`/
+  `dsConsult`; `master` giờ có ĐỦ dòng cho MỌI bàn occupied (TC1/2/3, TV2/4 —
+  không còn "cố tình thiếu để test fallback" vì cơ chế fallback qua DS đã
+  mất theo); thêm `dispatch` (2 dòng demo: TV4 — bàn đang bận + có người
+  chờ thêm; TV6 — bàn TRỐNG nhưng có người đã được gán, chờ NV nhận — demo
+  đúng ca MỚI mà bản trước không thể có). **Bug tự bắt khi verify bằng
+  browser** (không phải do user báo): quên thêm dòng "Hoàn tất" cho khách
+  demo "Chờ điều phối" (Vũ Xuân Phong, STT6) trong `master` → `everSeenNames`
+  (giờ chỉ scan bảng `master`) không biết khách này đã từng xuất hiện →
+  hiện TRÙNG ở cả khu "Chờ check-in" lẫn "Chờ điều phối" cùng lúc (thấy rõ
+  qua ảnh chụp: 2 chấm cùng số "6"). Sửa bằng cách thêm 1 dòng `master` với
+  `Trạng thái`="Hoàn tất" cho khách đó — đúng invariant thật: 1 khách "Hoàn
+  tất" 1 khâu LUÔN có ít nhất 1 dòng Master trước đó ghi lại lúc được tiếp
+  nhận.
+- `cloudflare-worker.js`: `TABLE_ENV` bỏ `dsTradein`/`dsConsult`, thêm
+  `dispatch: 'TB_DISPATCH'`.
+- Docs (`README.md`, `docs/LARK_SETUP.md` viết lại gần như toàn bộ,
+  `docs/PROJECT_OVERVIEW.md` cập nhật warning đầu §5): phản ánh đúng 4 bảng
+  mới, bỏ mọi hướng dẫn liên quan DS Master/dsTradein/dsConsult.
+
+**Verify**: `tsc -b --noEmit` + `npm run build` sạch sau MỖI file lớn (không
+gộp cuối). Browser (mock mode) — bàn giống hệt bản trước VỀ MẶT OCCUPANCY
+(KT1-3/TV2/TV4 đỏ, còn lại xanh) nhưng khu chờ đổi đúng theo thiết kế mới:
+"4" → "2" (STT7/8 giờ có badge riêng ở TV4/TV6 thay vì nằm trong khu chung).
+Bấm TV4 (bàn bận + có người chờ): popover đúng "Tên NV: M Thành_CV_VHWS&AM ·
+Khách đang tiếp nhận (1/4): #5 Võ Xuân Phong · Khách đang chờ: 1". Bấm TV6
+(bàn TRỐNG nhưng có người chờ — ca hoàn toàn mới, chưa từng test được trước
+đây): popover đúng "Trống · Tên NV: — · Bàn trống — chưa có thông tin khách
+· Khách đang chờ: 1" — xác nhận badge chờ hiện đúng độc lập với occupancy.
+Sidebar "Tư vấn 8/8 bàn" (trước đây "6/8", giờ luôn full vì `hasData` không
+còn phụ thuộc dòng DS nào). Không console error (ngoài log HMR cũ từ các
+bước sửa dở dang trước đó, đã xác nhận là buffer cũ qua reload cứng).

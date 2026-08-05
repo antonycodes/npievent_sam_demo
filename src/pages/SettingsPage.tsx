@@ -8,10 +8,8 @@
 import { useMemo, useState } from 'react';
 import {
   CHECKIN_LABELS,
-  DS_FIELD_LABELS,
-  DS_STATUS_LABELS,
-  DS_TYPE_FIELD_LABEL,
-  DS_TYPE_VALUE_LABELS,
+  DISPATCH_DESK_FIELD_LABELS,
+  DISPATCH_FIELD_LABEL,
   MASTER_FIELD_LABELS,
   TABLE_LABELS,
   defaultSettings,
@@ -22,7 +20,7 @@ import {
   type ConnMode,
   type LarkSettings,
 } from '@/config/larkSettings';
-import type { CheckinFieldMap, DsFieldMap, DsStatusFieldMap, MasterFieldMap } from '@/config/larkConfig';
+import type { CheckinFieldMap, MasterFieldMap } from '@/config/larkConfig';
 import { fetchLarkData } from '@/services/larkService';
 import { mapDeskStates } from '@/services/larkMapper';
 import type { TableKey } from '@/services/larkTypes';
@@ -48,26 +46,20 @@ export default function SettingsPage() {
   const setTableId = (key: TableKey, v: string) =>
     setDraft((d) => ({ ...d, tableIds: { ...d.tableIds, [key]: v } }));
 
-  const setDsField = (table: 'dsTradein' | 'dsConsult', k: keyof DsFieldMap, v: string) =>
-    setDraft((d) => ({ ...d, fields: { ...d.fields, [table]: { ...d.fields[table], [k]: v } } }));
-
-  const setDsTypeField = (v: string) =>
-    setDraft((d) => ({ ...d, fields: { ...d.fields, dsType: { ...d.fields.dsType, field: v } } }));
-
-  const setDsTypeValue = (cluster: ClusterKey, v: string) =>
-    setDraft((d) => ({
-      ...d,
-      fields: { ...d.fields, dsType: { ...d.fields.dsType, value: { ...d.fields.dsType.value, [cluster]: v } } },
-    }));
-
-  const setStatusField = (k: keyof DsStatusFieldMap, v: string) =>
-    setDraft((d) => ({ ...d, fields: { ...d.fields, dsStatus: { ...d.fields.dsStatus, [k]: v } } }));
-
   const setCheckinField = (k: keyof CheckinFieldMap, v: string) =>
     setDraft((d) => ({ ...d, fields: { ...d.fields, checkin: { ...d.fields.checkin, [k]: v } } }));
 
   const setMasterField = (k: keyof MasterFieldMap, v: string) =>
     setDraft((d) => ({ ...d, fields: { ...d.fields, master: { ...d.fields.master, [k]: v } } }));
+
+  const setDispatchDeskField = (cluster: ClusterKey, v: string) =>
+    setDraft((d) => ({
+      ...d,
+      fields: { ...d.fields, dispatch: { ...d.fields.dispatch, deskField: { ...d.fields.dispatch.deskField, [cluster]: v } } },
+    }));
+
+  const setDispatchNameField = (v: string) =>
+    setDraft((d) => ({ ...d, fields: { ...d.fields, dispatch: { ...d.fields.dispatch, name: v } } }));
 
   const save = () => {
     larkSettingsStore.save(clone(draft));
@@ -96,11 +88,6 @@ export default function SettingsPage() {
       setTesting(false);
     }
   };
-
-  const DS_TABLES: Array<['dsTradein' | 'dsConsult', string]> = [
-    ['dsTradein', 'DS Kỹ thuật (bảng "DS Master", lọc Loại = Thu cũ)'],
-    ['dsConsult', 'DS Tư vấn (bảng "DS Master", lọc Loại = Tư vấn)'],
-  ];
 
   return (
     <div className="min-h-full bg-neutral-100 text-neutral-800">
@@ -163,7 +150,7 @@ export default function SettingsPage() {
                   placeholder="https://proxy-cua-ban/api/lark"
                   value={draft.apiUrl}
                   onChange={(v) => setTop('apiUrl', v)}
-                  hint="Client gọi {URL}/dsTradein, /dsConsult, /checkin, /orders, /master (đều là bảng Master) — hoặc bấm Quét QR"
+                  hint="Client gọi {URL}/checkin, /orders, /master, /dispatch — hoặc bấm Quét QR"
                 />
               </div>
               <QrScanButton onScan={(v) => setTop('apiUrl', v.trim())} />
@@ -207,50 +194,7 @@ export default function SettingsPage() {
             Điền đúng <b>tên cột hiển thị</b> trong Lark cho từng trường. Để trống = dùng mặc định.
           </p>
 
-          {DS_TABLES.map(([table, label]) => (
-            <MapBlock key={table} title={label}>
-              {(Object.keys(DS_FIELD_LABELS) as Array<keyof DsFieldMap>).map((k) => (
-                <Input
-                  key={k}
-                  label={DS_FIELD_LABELS[k]}
-                  value={draft.fields[table][k]}
-                  onChange={(v) => setDsField(table, k, v)}
-                />
-              ))}
-            </MapBlock>
-          ))}
-
-          <MapBlock title='Lọc "Loại" (bảng DS Master dùng chung cho cả 2 cụm trên)'>
-            <Input
-              label={DS_TYPE_FIELD_LABEL}
-              value={draft.fields.dsType.field}
-              onChange={setDsTypeField}
-              hint='Để trống = không lọc (dùng khi bảng đã tách riêng theo cụm như trước)'
-            />
-            <Input
-              label={DS_TYPE_VALUE_LABELS.kythuat}
-              value={draft.fields.dsType.value.kythuat}
-              onChange={(v) => setDsTypeValue('kythuat', v)}
-            />
-            <Input
-              label={DS_TYPE_VALUE_LABELS.consult}
-              value={draft.fields.dsType.value.consult}
-              onChange={(v) => setDsTypeValue('consult', v)}
-            />
-          </MapBlock>
-
-          <MapBlock title='Khối Status (cột chung trong "DS Master")'>
-            {(Object.keys(DS_STATUS_LABELS) as Array<keyof DsStatusFieldMap>).map((k) => (
-              <Input
-                key={k}
-                label={DS_STATUS_LABELS[k]}
-                value={draft.fields.dsStatus[k]}
-                onChange={(v) => setStatusField(k, v)}
-              />
-            ))}
-          </MapBlock>
-
-          <MapBlock title="Check in">
+          <MapBlock title="Check in (bảng Master_Check in)">
             {(Object.keys(CHECKIN_LABELS) as Array<keyof CheckinFieldMap>).map((k) => (
               <Input
                 key={k}
@@ -261,7 +205,7 @@ export default function SettingsPage() {
             ))}
           </MapBlock>
 
-          <MapBlock title='Master (NV tiếp nhận khách theo bàn — xác định khách đang ở bàn nào)'>
+          <MapBlock title='Master (NV tiếp nhận khách theo bàn — xác định khách đang ở bàn nào + màu bàn)'>
             {(Object.keys(MASTER_FIELD_LABELS) as Array<keyof MasterFieldMap>).map((k) => (
               <Input
                 key={k}
@@ -270,6 +214,24 @@ export default function SettingsPage() {
                 onChange={(v) => setMasterField(k, v)}
               />
             ))}
+          </MapBlock>
+
+          <MapBlock title='Master Điều phối (khách đã gán bàn, chờ NV nhận — số "khách đang chờ" mỗi bàn)'>
+            <Input
+              label={DISPATCH_FIELD_LABEL}
+              value={draft.fields.dispatch.name}
+              onChange={setDispatchNameField}
+            />
+            <Input
+              label={DISPATCH_DESK_FIELD_LABELS.kythuat}
+              value={draft.fields.dispatch.deskField.kythuat}
+              onChange={(v) => setDispatchDeskField('kythuat', v)}
+            />
+            <Input
+              label={DISPATCH_DESK_FIELD_LABELS.consult}
+              value={draft.fields.dispatch.deskField.consult}
+              onChange={(v) => setDispatchDeskField('consult', v)}
+            />
           </MapBlock>
         </Section>
 

@@ -102,12 +102,13 @@ khung gộp vẫn nhớ khu vực gốc (`checkin`/`dispatch`) để mở đúng
 
 ## 5. Nguồn dữ liệu Lark & Schema
 
-> ⚠️ **Phần dưới đã CŨ** (mô tả schema trước 2026-08-05). Base thật giờ dùng
-> schema "Master": `DS thu cũ`/`DS Tư vấn` → 1 bảng `DS Master` chung (lọc cột
-> `Loại`), `Check in` → `Master_Check in` (tên cột không đổi), và thêm bảng
-> `Master` (NV tiếp nhận khách theo bàn — nguồn xác định khách đang ở bàn nào,
-> thay cho cách suy qua khoá NV mô tả ở §5.2 dưới). Xem `README.md` § Kiến
-> trúc dữ liệu, `docs/LARK_SETUP.md`, và `src/config/larkConfig.ts`'s module
+> ⚠️ **Phần dưới đã CŨ** (mô tả schema trước 2026-08-05, kể cả bản "Master"
+> đầu tiên cùng ngày mô tả trong warning cũ ở đây). Base thật giờ KHÔNG dùng
+> `DS Master` nữa (hoá ra là danh sách nhân sự) — occupancy/màu bàn/tên NV đọc
+> từ bảng `Master`, số "khách đang chờ" mỗi bàn đọc từ `Master Điều phối`.
+> Board tính state cho 11 vị trí cố định trực tiếp, không còn "match theo dòng
+> DS" như mô tả ở §5.2 dưới. Xem `README.md` § Kiến trúc dữ liệu,
+> `docs/LARK_SETUP.md`, và `src/config/larkConfig.ts`/`larkMapper.ts`'s module
 > doc cho thông tin ĐÚNG hiện tại — phần dưới giữ lại để tham khảo lịch sử.
 
 App đọc **5 bảng** (map từ workbook thật `NPI_Testing_2.2`; không còn `DS backup`):

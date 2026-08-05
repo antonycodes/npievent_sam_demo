@@ -1,41 +1,35 @@
 /**
  * larkMapper — turn raw Lark tables into per-desk live state.
  *
- * Each DS registry row (`DS Master`, filtered by `Loại` — see `filterByType`)
- * carries the desk's current status and latest customer, so occupancy status
- * text comes straight from DS:
- *   - status ← `Trạng thái hiện tại` ("Đang tư vấn" → occupied, "Rảnh" → free)
- *   - "Khách gần nhất" — used only as a FALLBACK single customer when the
- *     `Master` table (below) has no active row for this desk yet.
- *
- * **Master schema (2026-08-05), per user's real business flow**: khách
- * check-in ở `Master_Check in` (STT) → điều phối gán bàn trong `Master Điều
- * phối` (không đọc bởi app — chỉ ảnh hưởng `Sl khách chờ` tính sẵn trong `DS
- * Master`) → NV tiếp nhận khách, ghi vào `Master` (`TV_MãNV` = mã bàn, khớp
- * THẲNG `TablePosition.id`; `Trạng thái` = Tiếp nhận/Hoàn tất). `Master` giờ
- * là nguồn xác định "khách nào đang ở bàn nào" — thay cho cách suy gián tiếp
- * qua khoá NV trong Check-in (bản trước, xem `indexMasterByDeskCode`): cách cũ
- * tồn tại vì bảng giao dịch gốc ("Giao dịch Tư vấn") chỉ có cho Tư vấn, không
- * có cho Kỹ thuật; `Master` giờ phủ cả 2 loại qua cột `Loại`, và vì `TV_MãNV`
- * chính là mã bàn nên không cần khoá gián tiếp/anchor gì nữa — group thẳng
- * theo mã bàn. Full chi tiết khách (SP, ghi chú, nghiệm thu…) vẫn join theo
- * TÊN từ `Master_Check in` như cũ.
+ * **Schema (2026-08-05, "no DS Master" revision)**: `DS Master` turned out to
+ * be a personnel roster, not a per-desk operational registry — the app no
+ * longer reads it at all. Instead, `mapDeskStates` computes state for every
+ * FIXED position in `layoutConfig.ALL_POSITIONS` directly, from 2 sources:
+ *   - `Master` (`indexMasterByDeskCode`) — who's being served where right
+ *     now. `TV_MãNV` = desk code (khớp thẳng `TablePosition.id`), `Trạng
+ *     thái` = Tiếp nhận/Hoàn tất, `Người` = NV. A desk is occupied (đỏ) iff
+ *     it has ≥ 1 "Tiếp nhận" row here — no more reading a literal "trạng
+ *     thái hiện tại" text field.
+ *   - `Master Điều phối` (`indexDispatchByDeskCode`) — khách đã được điều
+ *     phối viên gán vào 1 bàn cụ thể (cột `DS Thu cũ`/`DS Tư vấn` = mã bàn)
+ *     nhưng CHƯA có dòng "Tiếp nhận" tương ứng trong `Master` → đếm vào
+ *     `waiting` của đúng bàn đó (badge cam).
+ * Chi tiết khách (SP, ghi chú, nghiệm thu…) vẫn join theo TÊN từ
+ * `Master_Check in` như cũ. 3 tầng "đang chờ" không trùng nhau (xem
+ * `dispatchedNames` bên dưới): chưa điều phối đi đâu (`waitingCheckin`) →
+ * đã điều phối vào 1 bàn, chờ NV nhận (badge bàn) → đang được phục vụ.
  */
 import {
   STATUS_COMPLETED,
   STATUS_RECEIVED,
   type CheckinFieldMap,
+  type DispatchFieldMap,
   type FieldConfig,
   type MasterFieldMap,
 } from '@/config/larkConfig';
 import { toFieldConfig } from '@/config/larkSettings';
-import {
-  deskUiStatus,
-  type ClusterKey,
-  type DeskCustomer,
-  type DeskLiveState,
-  type WaitingCustomer,
-} from '@/types/desk';
+import { ALL_POSITIONS } from '@/config/layoutConfig';
+import type { ClusterKey, DeskCustomer, DeskLiveState, WaitingCustomer } from '@/types/desk';
 import type { LarkCellValue, LarkRecord, LarkTables } from './larkTypes';
 
 export function cellToString(v: LarkCellValue): string | null {
@@ -83,24 +77,14 @@ export function cellToBool(v: LarkCellValue): boolean {
 }
 
 const CLUSTERS: ClusterKey[] = ['kythuat', 'consult'];
-// `kythuat` still reads the "dsTradein" Lark table (unchanged) — see the
-// module doc above and layoutConfig.ts's `ID_PREFIX` comment.
-const DS_KEY = { kythuat: 'dsTradein', consult: 'dsConsult' } as const;
-
-/** Lọc rows "DS Master" theo cột `Loại` cho đúng cụm (xem module doc). */
-function filterByType(rows: LarkRecord[], cluster: ClusterKey, dsType: FieldConfig['dsType']): LarkRecord[] {
-  const wanted = dsType.value[cluster]?.trim();
-  if (!dsType.field.trim() || !wanted) return rows; // chưa cấu hình → không lọc
-  return rows.filter((r) => cellToString(r.fields[dsType.field]) === wanted);
-}
 
 export interface MappedData {
   statesById: Record<string, DeskLiveState>;
   totalCheckIn: number;
   totalRegistered: number;
-  /** Đã check-in (có STT) nhưng chưa từng xuất hiện ở bàn nào — chờ điều phối lần đầu. */
+  /** Đã check-in nhưng chưa từng được điều phối vào bàn nào — chờ điều phối lần đầu. */
   waitingCheckin: WaitingCustomer[];
-  /** Vừa hoàn tất 1 cụm, bàn đang rảnh, chưa được điều phối sang cụm tiếp theo. */
+  /** Vừa hoàn tất 1 cụm, chưa được điều phối sang cụm tiếp theo (và chưa dispatch vào bàn nào). */
   waitingDispatch: WaitingCustomer[];
   /** Đã hoàn tất toàn bộ quy trình (Check-in cột "End flow" = "End flow"). */
   endFlow: WaitingCustomer[];
@@ -131,9 +115,7 @@ interface CheckinIndexEntry {
  * Index Check-in rows by customer name.
  *
  * Check-in's `STT` is the ONE canonical queue number for a customer — assigned
- * once at check-in and unchanged for the whole event. DS tables also carry a
- * local "STT gần nhất (helper)" per stage, but that is a per-stage helper, not
- * an identity — never use it to label a customer.
+ * once at check-in and unchanged for the whole event.
  */
 function indexCheckinByName(rows: LarkRecord[], fm: CheckinFieldMap): Map<string, CheckinIndexEntry> {
   const m = new Map<string, CheckinIndexEntry>();
@@ -159,18 +141,23 @@ const STATUS_FIELD: Record<ClusterKey, keyof CheckinFieldMap> = {
   consult: 'statusConsult',
 };
 
+interface DeskGroup {
+  customers: DeskCustomer[];
+  staff: string | null;
+}
+
 /**
  * Gom khách đang "Tiếp nhận" (bảng `Master`) theo MÃ BÀN (`TV_MãNV`, khớp
- * thẳng `TablePosition.id`), sắp theo "Thời gian" tăng dần (ai được tiếp
- * nhận trước lên trước). Đây là nguồn cho phép 1 bàn/NV hiện đủ TẤT CẢ khách
- * đang phục vụ cùng lúc, phủ cả 2 cụm (Kỹ thuật/Tư vấn) qua cùng 1 bảng.
+ * thẳng `TablePosition.id`), sắp theo "Thời gian" tăng dần. Cũng lấy luôn tên
+ * NV (`Người`) — dòng nào có giá trị trước thì dùng (nhiều dòng cùng bàn nên
+ * luôn cùng 1 NV trong thực tế).
  */
 function indexMasterByDeskCode(
   rows: LarkRecord[],
   fm: MasterFieldMap,
   checkinByName: Map<string, CheckinIndexEntry>,
-): Map<string, DeskCustomer[]> {
-  const entries: Array<{ deskCode: string; time: number; customer: DeskCustomer }> = [];
+): Map<string, DeskGroup> {
+  const entries: Array<{ deskCode: string; time: number; staff: string | null; customer: DeskCustomer }> = [];
 
   for (const r of rows) {
     const deskCode = cellToString(r.fields[fm.deskCode]);
@@ -181,6 +168,7 @@ function indexMasterByDeskCode(
     entries.push({
       deskCode,
       time: cellToNumber(r.fields[fm.time]),
+      staff: cellToString(r.fields[fm.staff]),
       customer: {
         stt: ci?.stt ?? null,
         name,
@@ -193,106 +181,93 @@ function indexMasterByDeskCode(
   }
 
   entries.sort((a, b) => a.time - b.time);
-  const result = new Map<string, DeskCustomer[]>();
+  const result = new Map<string, DeskGroup>();
   for (const e of entries) {
-    const list = result.get(e.deskCode) ?? [];
-    list.push(e.customer);
-    result.set(e.deskCode, list);
+    const g = result.get(e.deskCode) ?? { customers: [], staff: null };
+    g.customers.push(e.customer);
+    if (!g.staff && e.staff) g.staff = e.staff;
+    result.set(e.deskCode, g);
+  }
+  return result;
+}
+
+/**
+ * Gom tên khách đã được điều phối vào 1 mã bàn cụ thể (bảng `Master Điều
+ * phối`, cột `DS Thu cũ`/`DS Tư vấn` tuỳ cụm — 1 dòng chỉ có ĐÚNG 1 trong 2
+ * cột này khác rỗng tuỳ "Phân loại", nên đọc cả 2 cột trên mọi dòng là an toàn).
+ */
+function indexDispatchByDeskCode(rows: LarkRecord[], fm: DispatchFieldMap): Map<string, Set<string>> {
+  const deskFields = [fm.deskField.kythuat, fm.deskField.consult];
+  const result = new Map<string, Set<string>>();
+  for (const r of rows) {
+    const name = cellToString(r.fields[fm.name]);
+    if (!name) continue;
+    for (const field of deskFields) {
+      const deskCode = cellToString(r.fields[field]);
+      if (!deskCode) continue;
+      const set = result.get(deskCode) ?? new Set<string>();
+      set.add(name);
+      result.set(deskCode, set);
+    }
   }
   return result;
 }
 
 export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldConfig()): MappedData {
-  const { ds, dsType, dsStatus, checkin, master } = fields;
+  const { checkin, master, dispatch } = fields;
   const checkinByName = indexCheckinByName(tables.checkin, checkin);
-  // Khách đang "Tiếp nhận" theo mã bàn (bảng Master) — cho phép 1 bàn/NV hiện
-  // nhiều khách cùng lúc, phủ cả 2 cụm.
   const activeByDeskCode = indexMasterByDeskCode(tables.master, master, checkinByName);
+  const dispatchByDeskCode = indexDispatchByDeskCode(tables.dispatch, dispatch);
   const statesById: Record<string, DeskLiveState> = {};
 
-  // Đang được phục vụ ở BẤT KỲ bàn nào ngay lúc này (mọi cụm).
+  // Đang được phục vụ ở BẤT KỲ bàn nào ngay lúc này.
   const activeNames = new Set<string>();
-  // Đã từng xuất hiện ở bất kỳ bàn nào (mọi trạng thái) — dùng để loại khỏi "Chờ check-in".
+  // Đã từng xuất hiện trong Master (bất kỳ trạng thái) — dùng để loại khỏi "Chờ check-in".
   const everSeenNames = new Set<string>();
-  // Ứng viên "chờ điều phối": bàn vừa hoàn tất (Trạng thái gần nhất) và hiện đang rảnh.
-  const completedCandidates: WaitingCustomer[] = [];
+  // Đã được điều phối vào 1 bàn cụ thể (dù chưa được nhận) — loại khỏi cả
+  // "Chờ check-in" lẫn "Chờ điều phối" chung, vì đã có badge riêng ở đúng bàn đó.
+  const dispatchedNames = new Set<string>();
 
-  for (const cluster of CLUSTERS) {
-    const dsFm = ds[cluster];
+  for (const r of tables.master) {
+    const name = cellToString(r.fields[master.name]);
+    if (name) everSeenNames.add(name);
+  }
+  for (const names of dispatchByDeskCode.values()) {
+    for (const n of names) dispatchedNames.add(n);
+  }
 
-    for (const rec of filterByType(tables[DS_KEY[cluster]], cluster, dsType)) {
-      const code = cellToString(rec.fields[dsFm.code]);
-      if (!code) continue;
+  for (const pos of ALL_POSITIONS) {
+    const code = pos.id;
+    const group = activeByDeskCode.get(code);
+    const receivedCustomers = group?.customers ?? [];
+    const occupied = receivedCustomers.length > 0;
+    for (const c of receivedCustomers) if (c.name) activeNames.add(c.name);
 
-      const currentStatus = cellToString(rec.fields[dsStatus.currentStatus]);
-      const customerRecent = cellToString(rec.fields[dsStatus.customerRecent]);
-
-      if (customerRecent) everSeenNames.add(customerRecent);
-
-      // `code` (mã bàn của dòng DS này) khớp THẲNG `TV_MãNV` trong Master —
-      // không cần anchor/khoá NV gián tiếp nữa (xem module doc).
-      const grouped = activeByDeskCode.get(code);
-      const hasActiveGroup = (grouped?.length ?? 0) > 0;
-
-      // Occupied = có nhóm khách thật sự đang "Tiếp nhận" trong Master (đáng
-      // tin hơn), HOẶC (fallback) DS tự báo đang bận — dùng khi Master chưa
-      // kịp có dòng cho bàn này.
-      const dsOccupied = deskUiStatus({ currentStatus, hasData: true }) === 'occupied';
-      const occupied = hasActiveGroup || dsOccupied;
-
-      // Fallback về đúng 1 khách "gần nhất" — CHỈ khi Master chưa gom được
-      // nhóm nào cho bàn này nhưng DS vẫn báo đang bận.
-      const anchorCi = customerRecent ? checkinByName.get(customerRecent) : undefined;
-      const fallback: DeskCustomer[] =
-        !hasActiveGroup && dsOccupied && customerRecent
-          ? [
-              {
-                stt: anchorCi?.stt ?? null,
-                name: customerRecent,
-                productName: anchorCi?.product ?? null,
-                paymentNote: anchorCi?.note ?? null,
-                deviceAccepted: anchorCi?.deviceAccepted ?? null,
-                oldDeviceCheck: anchorCi?.oldDeviceCheck ?? null,
-              },
-            ]
-          : [];
-      const receivedCustomers: DeskCustomer[] = hasActiveGroup ? grouped! : fallback;
-      for (const c of receivedCustomers) if (c.name) activeNames.add(c.name);
-
-      // Các field "1 khách" (legacy, chủ yếu phục vụ nhánh fallback/hiện thị
-      // rút gọn) — lấy từ khách ĐẦU TIÊN trong `receivedCustomers` thật sự.
-      const primary = receivedCustomers[0];
-      const customerSTT = primary?.stt ?? null;
-      const customerName = primary?.name ?? null;
-      const productName = primary?.productName ?? null;
-      const paymentNote = primary?.paymentNote ?? null;
-      const deviceAccepted = primary?.deviceAccepted ?? null;
-
-      statesById[code] = {
-        staffName: cellToString(rec.fields[dsFm.staff]),
-        received: cellToNumber(rec.fields[dsFm.received]),
-        completed: cellToNumber(rec.fields[dsFm.completed]),
-        // Guard against spreadsheet formula artifacts (e.g. -1).
-        waiting: Math.max(0, cellToNumber(rec.fields[dsFm.waiting])),
-        currentStatus,
-        isOccupied: occupied,
-        hasData: true,
-        customerSTT,
-        customerName,
-        productName,
-        paymentNote,
-        deviceAccepted,
-        receivedCustomers,
-      };
+    const servedNames = new Set(receivedCustomers.map((c) => c.name).filter((n): n is string => Boolean(n)));
+    let waiting = 0;
+    for (const n of dispatchByDeskCode.get(code) ?? []) {
+      if (!servedNames.has(n)) waiting += 1;
     }
+
+    const primary = receivedCustomers[0];
+    statesById[code] = {
+      staffName: group?.staff ?? null,
+      waiting,
+      currentStatus: occupied ? 'Đang tiếp nhận' : 'Rảnh',
+      isOccupied: occupied,
+      hasData: true,
+      customerSTT: primary?.stt ?? null,
+      customerName: primary?.name ?? null,
+      productName: primary?.productName ?? null,
+      paymentNote: primary?.paymentNote ?? null,
+      deviceAccepted: primary?.deviceAccepted ?? null,
+      receivedCustomers,
+    };
   }
 
   // Ứng viên "chờ điều phối" — quét theo TỪNG KHÁCH qua Check-in
-  // (`Status in <cụm>` = "Hoàn tất"), KHÔNG theo bàn: 1 bàn có thể vừa hoàn
-  // tất 1 khách trong khi NV đó vẫn đang phục vụ khách khác cùng lúc — DS chỉ
-  // báo "Hoàn tất"/"Rảnh" ở cấp CẢ BÀN nên bỏ sót đúng ca này (occupied vẫn
-  // true vì còn khách khác). `activeNames`/`dispatchSeen`/`endFlow` xử lý loại
-  // trùng bên dưới, nên chỉ cần đẩy hết ứng viên vào đây.
+  // (`Status in <cụm>` = "Hoàn tất").
+  const completedCandidates: WaitingCustomer[] = [];
   for (const cluster of CLUSTERS) {
     const statusField = checkin[STATUS_FIELD[cluster]];
     for (const r of tables.checkin) {
@@ -313,23 +288,25 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
     }
   }
 
-  // "Chờ điều phối": hoàn tất 1 khâu nhưng chưa đang được phục vụ ở đâu khác
-  // (đã dispatch rồi thì loại; đã "End flow" toàn bộ thì cũng loại — không cần
-  // điều phối thêm nữa; 1 khách chỉ hiện 1 lần dù hoàn tất ở nhiều bàn).
+  // "Chờ điều phối": hoàn tất 1 khâu, chưa đang được phục vụ ở đâu, VÀ chưa
+  // được điều phối vào bàn cụ thể nào (nếu đã dispatch thì hiện ở badge bàn
+  // đó thay vì khu chung — tránh đếm trùng).
   const dispatchSeen = new Set<string>();
   const waitingDispatch: WaitingCustomer[] = [];
   for (const cand of completedCandidates) {
     if (!cand.name || activeNames.has(cand.name) || dispatchSeen.has(cand.name)) continue;
+    if (dispatchedNames.has(cand.name)) continue;
     if (checkinByName.get(cand.name)?.endFlow) continue;
     dispatchSeen.add(cand.name);
     waitingDispatch.push(cand);
   }
 
-  // "Chờ check-in": đã check-in (có STT) nhưng chưa từng xuất hiện ở bàn nào.
+  // "Chờ check-in": đã check-in nhưng chưa từng xuất hiện ở Master VÀ chưa
+  // được điều phối vào bàn nào.
   const waitingCheckin: WaitingCustomer[] = [];
   for (const r of tables.checkin) {
     const name = cellToString(r.fields[checkin.name]);
-    if (!name || everSeenNames.has(name) || activeNames.has(name)) continue;
+    if (!name || everSeenNames.has(name) || activeNames.has(name) || dispatchedNames.has(name)) continue;
     waitingCheckin.push({
       stt: cellToString(r.fields[checkin.stt]),
       name,

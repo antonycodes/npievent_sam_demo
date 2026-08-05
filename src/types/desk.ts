@@ -3,8 +3,9 @@
  *
  * A "desk" is one interactive floor position (KT/TV). Its static shape
  * (id, cluster, label, coords) comes from layoutConfig; its live state comes
- * from the Lark "DS *" registry tables (staff + counts) plus, best-effort, the
- * transaction tables (current customer detail). See memory.md §4.
+ * from Lark `Master` (occupancy + staff) and `Master Điều phối` (waiting) —
+ * no "DS *" registry table anymore (dropped 2026-08-05, see memory.md §4 and
+ * larkMapper.ts's module doc for the full picture).
  */
 
 /** Physical cluster a desk belongs to. */
@@ -67,31 +68,29 @@ export interface WaitingCustomer extends DeskCustomer {
 }
 
 /**
- * Live per-desk state merged from the DS registry (+ transaction join).
- * All fields optional so a desk with no data still renders (as available).
+ * Live per-desk state, computed straight from `Master` (occupancy + staff) và
+ * `Master Điều phối` (waiting) — không còn qua bảng đăng ký "DS *" nào nữa
+ * (xem `larkMapper.ts`). Desk luôn có 1 state (mọi bàn trong `ALL_POSITIONS`
+ * đều được tính), không phải optional/merge như trước.
  */
 export interface DeskLiveState {
-  /** Assigned staff — DS `NV Tư vấn` / `Nhân viên`. */
+  /** `Master.Người` của khách đang được tiếp nhận — null nếu bàn trống. */
   staffName: string | null;
-  /** DS `Sl … tiếp nhận` — currently being served. */
-  received: number;
-  /** DS `Sl … hoàn tất` — completed. */
-  completed: number;
-  /** DS `Sl khách chờ` — waiting (bottleneck signal). */
+  /** Số khách đã gán vào bàn này (`Master Điều phối`) nhưng chưa có dòng "Tiếp nhận" trong `Master`. */
   waiting: number;
-  /** DS `Trạng thái hiện tại` — "Đang tư vấn" / "Rảnh" / "Chưa có dữ liệu". */
+  /** Text hiển thị cho dòng "Trạng thái" ở popover — suy trực tiếp từ `isOccupied`, không đọc field Lark nào. */
   currentStatus: string | null;
-  /** Derived from currentStatus → occupied (red). */
+  /** true nếu có ≥ 1 khách đang "Tiếp nhận" tại bàn này trong `Master`. */
   isOccupied: boolean;
-  /** true once this desk was seen in the data (chỉ dùng cho thống kê "X/Y bàn"). */
+  /** Luôn true — mọi bàn trong `ALL_POSITIONS` đều được tính state, không còn phụ thuộc 1 bảng đăng ký nào. */
   hasData: boolean;
-  // ── Customer detail (only when occupied), from DS + Check in ──
-  customerSTT: string | null; // STT gần nhất
-  customerName: string | null; // Khách gần nhất
-  productName: string | null; // SP 1 (Check in, by name)
-  paymentNote: string | null; // Note UDTT (Check in, by name)
-  deviceAccepted: boolean | null; // Đã nghiệm thu thiết bị (Check in, by name)
-  /** Mọi khách đang "Tiếp nhận" cùng lúc bởi NV phụ trách bàn này, sắp theo thời gian check-in. */
+  // ── Customer detail (only when occupied), từ Master + Master_Check in ──
+  customerSTT: string | null;
+  customerName: string | null;
+  productName: string | null; // SP 1 (Master_Check in, by name)
+  paymentNote: string | null; // Note UDTT (Master_Check in, by name)
+  deviceAccepted: boolean | null; // Đã nghiệm thu thiết bị (Master_Check in, by name)
+  /** Mọi khách đang "Tiếp nhận" cùng lúc tại bàn này, sắp theo "Thời gian" trong `Master`. */
   receivedCustomers: DeskCustomer[];
 }
 
@@ -118,7 +117,7 @@ export function deskUiStatus(d: Partial<DeskLiveState> | undefined): DeskUiStatu
 /** Aggregated counts for one cluster. */
 export interface ClusterSummary {
   total: number; // fixed map nodes in this cluster
-  withData: number; // nodes matched to a DS row
+  withData: number; // luôn = total (mọi bàn đều được tính state, xem DeskLiveState.hasData)
   occupied: number;
   available: number;
   waiting: number; // sum of khách chờ

@@ -8,15 +8,11 @@ import type { ClusterKey } from '@/types/desk';
 import type { TableKey } from '@/services/larkTypes';
 import {
   DEFAULT_CHECKIN_FIELDS,
-  DEFAULT_DS_FIELDS,
-  DEFAULT_DS_STATUS_FIELDS,
-  DEFAULT_DS_TYPE_FIELD,
+  DEFAULT_DISPATCH_FIELDS,
   DEFAULT_MASTER_FIELDS,
   ENV_DEFAULTS,
   type CheckinFieldMap,
-  type DsFieldMap,
-  type DsStatusFieldMap,
-  type DsTypeFieldMap,
+  type DispatchFieldMap,
   type FieldConfig,
   type LarkRuntimeConfig,
   type MasterFieldMap,
@@ -35,12 +31,9 @@ export interface LarkSettings {
   pollSeconds: number;
   tableIds: Record<TableKey, string>;
   fields: {
-    dsTradein: DsFieldMap;
-    dsConsult: DsFieldMap;
-    dsType: DsTypeFieldMap;
-    dsStatus: DsStatusFieldMap;
     checkin: CheckinFieldMap;
     master: MasterFieldMap;
+    dispatch: DispatchFieldMap;
   };
 }
 
@@ -57,12 +50,9 @@ export function defaultSettings(): LarkSettings {
     pollSeconds: Math.round(ENV_DEFAULTS.pollMs / 1000),
     tableIds: { ...ENV_DEFAULTS.tableIds },
     fields: {
-      dsTradein: { ...DEFAULT_DS_FIELDS.kythuat },
-      dsConsult: { ...DEFAULT_DS_FIELDS.consult },
-      dsType: { field: DEFAULT_DS_TYPE_FIELD.field, value: { ...DEFAULT_DS_TYPE_FIELD.value } },
-      dsStatus: { ...DEFAULT_DS_STATUS_FIELDS },
       checkin: { ...DEFAULT_CHECKIN_FIELDS },
       master: { ...DEFAULT_MASTER_FIELDS },
+      dispatch: { deskField: { ...DEFAULT_DISPATCH_FIELDS.deskField }, name: DEFAULT_DISPATCH_FIELDS.name },
     },
   };
 }
@@ -77,15 +67,12 @@ function hydrate(raw: unknown): LarkSettings {
     ...p,
     tableIds: { ...base.tableIds, ...(p.tableIds ?? {}) },
     fields: {
-      dsTradein: { ...base.fields.dsTradein, ...(p.fields?.dsTradein ?? {}) },
-      dsConsult: { ...base.fields.dsConsult, ...(p.fields?.dsConsult ?? {}) },
-      dsType: {
-        field: p.fields?.dsType?.field ?? base.fields.dsType.field,
-        value: { ...base.fields.dsType.value, ...(p.fields?.dsType?.value ?? {}) },
-      },
-      dsStatus: { ...base.fields.dsStatus, ...(p.fields?.dsStatus ?? {}) },
       checkin: { ...base.fields.checkin, ...(p.fields?.checkin ?? {}) },
       master: { ...base.fields.master, ...(p.fields?.master ?? {}) },
+      dispatch: {
+        deskField: { ...base.fields.dispatch.deskField, ...(p.fields?.dispatch?.deskField ?? {}) },
+        name: p.fields?.dispatch?.name ?? base.fields.dispatch.name,
+      },
     },
   };
 }
@@ -144,11 +131,10 @@ function str(v: string): string | undefined {
 
 export function toRuntimeConfig(s: LarkSettings = settings): LarkRuntimeConfig {
   const tableIds: TableIdMap = {
-    dsTradein: str(s.tableIds.dsTradein),
-    dsConsult: str(s.tableIds.dsConsult),
     checkin: str(s.tableIds.checkin),
     orders: str(s.tableIds.orders),
     master: str(s.tableIds.master),
+    dispatch: str(s.tableIds.dispatch),
   };
   return {
     useMock: s.useMock,
@@ -163,11 +149,9 @@ export function toRuntimeConfig(s: LarkSettings = settings): LarkRuntimeConfig {
 
 export function toFieldConfig(s: LarkSettings = settings): FieldConfig {
   return {
-    ds: { kythuat: s.fields.dsTradein, consult: s.fields.dsConsult },
-    dsType: s.fields.dsType,
-    dsStatus: s.fields.dsStatus,
     checkin: s.fields.checkin,
     master: s.fields.master,
+    dispatch: s.fields.dispatch,
   };
 }
 
@@ -179,33 +163,11 @@ export function hasLiveSource(s: LarkSettings = settings): boolean {
 
 /** Default field config (used for mock, which uses default column names). */
 export const DEFAULT_FIELD_CONFIG: FieldConfig = {
-  ds: DEFAULT_DS_FIELDS,
-  dsType: DEFAULT_DS_TYPE_FIELD,
-  dsStatus: DEFAULT_DS_STATUS_FIELDS,
   checkin: DEFAULT_CHECKIN_FIELDS,
   master: DEFAULT_MASTER_FIELDS,
+  dispatch: DEFAULT_DISPATCH_FIELDS,
 };
 
-/** Labels for the mapping form. */
-export const DS_FIELD_LABELS: Record<keyof DsFieldMap, string> = {
-  code: 'Mã bàn',
-  staff: 'Nhân viên',
-  received: 'SL đang tiếp nhận',
-  completed: 'SL hoàn tất',
-  waiting: 'SL khách chờ',
-};
-/** Nhãn cho khối lọc "Loại" (DS Master dùng chung cho cả 2 cụm). */
-export const DS_TYPE_FIELD_LABEL = 'Tên cột "Loại"';
-export const DS_TYPE_VALUE_LABELS: Record<ClusterKey, string> = {
-  kythuat: 'Giá trị lọc — Kỹ thuật',
-  consult: 'Giá trị lọc — Tư vấn',
-};
-export const DS_STATUS_LABELS: Record<keyof DsStatusFieldMap, string> = {
-  sttRecent: 'STT gần nhất',
-  statusRecent: 'Trạng thái gần nhất',
-  customerRecent: 'Khách gần nhất',
-  currentStatus: 'Trạng thái hiện tại',
-};
 export const CHECKIN_LABELS: Record<keyof CheckinFieldMap, string> = {
   stt: 'STT khách',
   name: 'Họ và tên',
@@ -224,15 +186,21 @@ export const MASTER_FIELD_LABELS: Record<keyof MasterFieldMap, string> = {
   deskCode: 'Mã bàn (TV_MãNV — khớp mã bàn trên sơ đồ)',
   status: 'Trạng thái (Tiếp nhận/Hoàn tất)',
   name: 'Họ và tên',
+  staff: 'NV phụ trách (person field)',
   time: 'Thời gian (để sắp thứ tự nhiều khách/bàn)',
 };
 
+export const DISPATCH_FIELD_LABEL = 'Họ và tên';
+export const DISPATCH_DESK_FIELD_LABELS: Record<ClusterKey, string> = {
+  kythuat: 'Cột mã bàn — Kỹ thuật (vd "DS thu cũ")',
+  consult: 'Cột mã bàn — Tư vấn (vd "DS Tư vấn")',
+};
+
 export const TABLE_LABELS: Record<TableKey, string> = {
-  dsTradein: 'DS Kỹ thuật (bảng "DS Master", lọc Loại = Thu cũ)',
-  dsConsult: 'DS Tư vấn (bảng "DS Master", lọc Loại = Tư vấn)',
   checkin: 'Check in (bảng "Master_Check in")',
   orders: 'Danh sách đơn hàng',
   master: 'Master (NV tiếp nhận khách theo bàn)',
+  dispatch: 'Master Điều phối (khách đã gán bàn, chờ NV nhận)',
 };
 
 export type { ClusterKey };

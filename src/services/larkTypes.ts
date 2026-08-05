@@ -7,10 +7,9 @@
  * display name. Cell values vary by field type — string, number, boolean, an
  * array of rich-text segments (formula/text fields, e.g. "Done in Flow" →
  * `[{text: "Tư vấn", type: "text"}]`), an array of bare strings (link/lookup
- * fields, e.g. "TV_Nsư Tư vấn" → `["optxXl70bv"]`, no `.text` wrapper), OR an
- * array of person objects (a "person" link field, e.g. "NV Tư vấn" →
- * `[{id, name, email, avatar_url}]`, no `.text`, use `.name`) — the mapper
- * coerces all three shapes.
+ * fields, no `.text` wrapper), OR an array of person objects (a "person"
+ * field, e.g. "Người" → `[{id, name, email, avatar_url}]`, no `.text`, use
+ * `.name`) — the mapper coerces all three shapes.
  */
 export interface LarkTextSegment {
   text?: string;
@@ -44,15 +43,19 @@ export interface LarkListResponse {
 }
 
 /**
- * The five logical tables the dashboard reads — all from the "Master" schema
- * (2026-08-05): `dsTradein`/`dsConsult` both read `DS Master` (filtered by
- * `Loại`), `checkin` reads `Master_Check in`, `orders` reads "Danh sách đơn
- * hàng" (total registered, for the check-in funnel), `master` reads `Master`
- * — the log of which staff received which customer at which desk (`TV_MãNV`),
- * the authoritative source for "who is at desk X right now" (see
- * `larkMapper.ts`'s `indexMasterByDeskCode`).
+ * The four logical tables the dashboard reads (2026-08-05, "no DS Master"
+ * revision — `DS Master` turned out to be a personnel roster the app doesn't
+ * need, not a per-desk registry):
+ *   - `checkin` reads `Master_Check in` — customer identity + detail (STT,
+ *     SP, ghi chú, nghiệm thu…), joined by name.
+ *   - `master` reads `Master` — who's being served at which desk (`TV_MãNV`
+ *     = desk code, `Trạng thái`, `Người` = staff) — the authoritative source
+ *     for occupancy + staff name (see `larkMapper.ts`'s `indexMasterByDeskCode`).
+ *   - `dispatch` reads `Master Điều phối` — customers assigned to a desk but
+ *     not yet picked up (drives the per-desk waiting count).
+ *   - `orders` reads "Danh sách đơn hàng" (total registered, for the funnel).
  */
-export type TableKey = 'dsTradein' | 'dsConsult' | 'checkin' | 'orders' | 'master';
+export type TableKey = 'checkin' | 'orders' | 'master' | 'dispatch';
 
 /** Raw records for every table, as returned by the service. */
 export type LarkTables = Record<TableKey, LarkRecord[]>;

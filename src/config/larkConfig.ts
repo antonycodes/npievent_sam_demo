@@ -1,31 +1,25 @@
 /**
  * larkConfig — types + DEFAULT column maps / connection for the Lark integration.
  *
- * These are the compile-time defaults (matching the `NPI_Testing_2.2` workbook,
- * seeded from `VITE_*` env). At runtime they can be overridden from the in-app
- * Settings page — see `larkSettings.ts`, which is what the app actually reads.
+ * These are the compile-time defaults, seeded from `VITE_*` env. At runtime
+ * they can be overridden from the in-app Settings page — see `larkSettings.ts`,
+ * which is what the app actually reads.
  *
- * **Master schema (2026-08-05):** the Lark base was reorganized — `DS Tư vấn` /
- * `DS thu cũ` / `DS backup` / `DS Kho` were consolidated into ONE table
- * (`DS Master`, 24 rows: 6 desks × 4 types), distinguished by a `Loại`
- * single-select column (`Tư vấn` / `Thu cũ` / `Backup` / `Kho`). Likewise
- * `Check in` → `Master_Check in` (same column names, verified 1:1 against the
- * export — no field renames needed there). The board layout is UNCHANGED
- * (still only `kythuat`/`consult`, 3+8 desks — user's explicit call, see
- * layoutConfig.ts) so both clusters now read the SAME `DS Master` table,
- * filtered client-side by `Loại` — see `DsTypeFieldMap` below and
- * `larkMapper.ts`. Backup/Kho rows exist in the data but are simply never
- * matched by any on-screen desk id, same as how TC4-6 were already ignored
- * before this change.
+ * **Schema (2026-08-05, "no DS Master" revision)**: per the user's real
+ * business flow — khách check-in ở `Master_Check in` (STT, chi tiết) → điều
+ * phối gán bàn trong `Master Điều phối` (cột `DS Thu cũ`/`DS Tư vấn` = mã bàn
+ * được gán) → NV tại bàn đó tiếp nhận khách, ghi vào `Master` (`TV_MãNV` = mã
+ * bàn, khớp thẳng `TablePosition.id`; `Người` = NV; `Trạng thái` =
+ * Tiếp nhận/Hoàn tất). `DS Master` (bảng DS cũ, gộp 4 loại bàn) hoá ra là
+ * **danh sách nhân sự** (roster), KHÔNG phải trạng thái vận hành theo bàn —
+ * app KHÔNG đọc bảng đó nữa. Occupancy/màu bàn/tên NV đọc từ `Master`; số
+ * "khách đang chờ" mỗi bàn đọc từ `Master Điều phối` (đã gán bàn nhưng chưa
+ * có dòng "Tiếp nhận" tương ứng trong `Master`) — xem `larkMapper.ts`.
  *
- * **`Master` table** (added 2026-08-05, same day): per user's real business
- * flow — check-in (`Master_Check in`) → dispatch (`Master Điều phối`, not
- * read by this app) → a staff member receives the customer at a desk, logged
- * in `Master` (`TV_MãNV` = desk code, `Trạng thái` = Tiếp nhận/Hoàn tất). This
- * is now the authoritative source for "who is at desk X right now" — see
- * `MasterFieldMap` and `larkMapper.ts`'s `indexMasterByDeskCode`.
+ * Board vẫn chỉ có 11 vị trí cố định (`layoutConfig.ts`'s `ALL_POSITIONS`) —
+ * mapper giờ tính state cho TỪNG VỊ TRÍ đó trực tiếp, không còn "match theo
+ * dòng của 1 bảng đăng ký" như trước.
  */
-import type { ClusterKey } from '@/types/desk';
 import type { TableKey } from '@/services/larkTypes';
 
 const env = import.meta.env;
@@ -33,36 +27,7 @@ const env = import.meta.env;
 export const DEFAULT_HOST =
   (env.VITE_LARK_HOST as string | undefined)?.replace(/\/+$/, '') ?? 'https://open.larksuite.com';
 
-/** Column names in a DS registry table → domain. */
-export interface DsFieldMap {
-  code: string;
-  staff: string;
-  received: string;
-  completed: string;
-  waiting: string;
-}
-
-/**
- * `DS Master` gộp 4 loại bàn (Tư vấn/Thu cũ/Backup/Kho) trong 1 bảng — cột
- * `Loại` (single-select) phân biệt loại nào. `kythuat`/`consult` đọc CÙNG 1
- * bảng Lark, chỉ khác giá trị lọc.
- */
-export interface DsTypeFieldMap {
-  /** Tên cột "Loại" trong DS Master. */
-  field: string;
-  /** Giá trị lọc theo cụm, vd `{ kythuat: 'Thu cũ', consult: 'Tư vấn' }`. */
-  value: Record<ClusterKey, string>;
-}
-
-/** DS "Status" block columns (same in all 3 DS tables). */
-export interface DsStatusFieldMap {
-  sttRecent: string;
-  statusRecent: string;
-  customerRecent: string;
-  currentStatus: string;
-}
-
-/** Check-in table columns. */
+/** Check-in table columns (`Master_Check in`). */
 export interface CheckinFieldMap {
   stt: string;
   name: string;
@@ -86,20 +51,17 @@ export interface CheckinFieldMap {
   /**
    * Trạng thái khách ở từng cụm — "Hoàn tất" nghĩa là vừa xong khâu đó, dùng
    * để phát hiện "Chờ điều phối" (xem `larkMapper.ts`'s `completedCandidates`).
-   * KHÔNG dùng để xác định khách đang ở bàn nào — việc đó giờ đọc trực tiếp từ
-   * bảng `Master` (xem `MasterFieldMap`), đáng tin hơn vì `Master` phủ cả 2
-   * cụm bằng đúng mã bàn (`TV_MãNV`), không cần khoá NV gián tiếp như trước.
+   * KHÔNG dùng để xác định khách đang ở bàn nào — việc đó đọc trực tiếp từ
+   * bảng `Master`.
    */
   statusTradein: string;
   statusConsult: string;
 }
 
 /**
- * `Master` — log "NV nhận khách" theo bàn, nguồn xác định khách đang ở bàn
- * nào (thay cho cách suy gián tiếp qua khoá NV trong Check-in trước đây —
- * bảng cũ chỉ có cho Tư vấn nên không dùng được cho Kỹ thuật; `Master` giờ
- * phủ cả 2 loại qua cột `Loại`, và `TV_MãNV` chính là mã bàn — khớp thẳng
- * `TablePosition.id`, không cần tra cứu gì thêm).
+ * `Master` — log "NV nhận khách" theo bàn. Nguồn DUY NHẤT xác định khách
+ * đang ở bàn nào + NV nào phụ trách (thay cho `DS Master`, hoá ra chỉ là
+ * danh sách nhân sự, không phải trạng thái vận hành).
  */
 export interface MasterFieldMap {
   /** Mã bàn — khớp thẳng `TablePosition.id` (vd "TV2", "TC1"). */
@@ -107,40 +69,29 @@ export interface MasterFieldMap {
   /** "Tiếp nhận" = đang phục vụ · "Hoàn tất" = đã xong (bỏ qua). */
   status: string;
   name: string;
+  /** NV đang tiếp nhận khách này (person field) — hiện lên popover "Tên NV". */
+  staff: string;
   /** Dùng để sắp khách theo thứ tự khi 1 NV/bàn phục vụ nhiều khách cùng lúc. */
   time: string;
 }
 
-/** All field maps bundled — what the mapper needs. */
-export interface FieldConfig {
-  ds: Record<ClusterKey, DsFieldMap>;
-  dsType: DsTypeFieldMap;
-  dsStatus: DsStatusFieldMap;
-  checkin: CheckinFieldMap;
-  master: MasterFieldMap;
+/**
+ * `Master Điều phối` — khách đã được điều phối viên GÁN vào 1 bàn cụ thể
+ * (cột `DS Thu cũ`/`DS Tư vấn` chứa mã bàn) nhưng CHƯA có dòng "Tiếp nhận"
+ * tương ứng trong `Master` — tức đang chờ NV bàn đó xử lý. `deskField` tách
+ * theo cụm vì đây là 2 cột khác nhau trong bảng (không union như `Master`).
+ */
+export interface DispatchFieldMap {
+  deskField: Record<'kythuat' | 'consult', string>;
+  name: string;
 }
 
-// Cả 2 cụm giờ đọc CÙNG 1 bảng "DS Master" (xem module doc ở đầu file) — tên
-// cột dùng chung, không còn khác nhau theo cụm như trước ("Nhân viên" vs "NV
-// Tư vấn", "SL TC..." vs "Sl TV..."). Giữ map riêng theo cụm (thay vì gộp 1
-// map) để trang Cài đặt vẫn cho phép chỉnh độc lập nếu base của bạn khác.
-export const DEFAULT_DS_FIELDS: Record<ClusterKey, DsFieldMap> = {
-  kythuat: { code: 'STT bàn', staff: 'NV Tư vấn', received: 'Sl TV đang tiếp nhận', completed: 'Sl TV hoàn tất', waiting: 'Sl khách chờ' },
-  consult: { code: 'STT bàn', staff: 'NV Tư vấn', received: 'Sl TV đang tiếp nhận', completed: 'Sl TV hoàn tất', waiting: 'Sl khách chờ' },
-};
-
-// Lọc "DS Master" theo loại bàn — giá trị options thật trong Lark (single-select).
-export const DEFAULT_DS_TYPE_FIELD: DsTypeFieldMap = {
-  field: 'Loại',
-  value: { kythuat: 'Thu cũ', consult: 'Tư vấn' },
-};
-
-export const DEFAULT_DS_STATUS_FIELDS: DsStatusFieldMap = {
-  sttRecent: 'STT gần nhất (helper)',
-  statusRecent: 'Trạng thái gần nhất (helper)',
-  customerRecent: 'Khách gần nhất (helper)',
-  currentStatus: 'Trạng thái hiện tại (kết quả chính)',
-};
+/** All field maps bundled — what the mapper needs. */
+export interface FieldConfig {
+  checkin: CheckinFieldMap;
+  master: MasterFieldMap;
+  dispatch: DispatchFieldMap;
+}
 
 // Cột nguồn giờ là bảng "Master_Check in" (trước là "Check in") — TÊN CỘT
 // giữ nguyên 1:1 (verify trực tiếp từ file export Lark), chỉ đổi bảng nguồn ở
@@ -163,21 +114,20 @@ export const DEFAULT_MASTER_FIELDS: MasterFieldMap = {
   deskCode: 'TV_MãNV',
   status: 'Trạng thái',
   name: 'Họ và tên',
+  staff: 'Người',
   time: 'Thời gian',
+};
+
+export const DEFAULT_DISPATCH_FIELDS: DispatchFieldMap = {
+  deskField: { kythuat: 'DS thu cũ', consult: 'DS Tư vấn' },
+  name: 'Họ và tên',
 };
 
 /** Giá trị `Trạng thái` (Master) / `Status in <cụm>` (Master_Check in) nghĩa là "đang được tiếp nhận". */
 export const STATUS_RECEIVED = 'Tiếp nhận';
 
-/** Giá trị `Trạng thái gần nhất` (DS) nghĩa là bàn vừa hoàn tất 1 khách. */
+/** Giá trị `Status in <cụm>` (Master_Check in) nghĩa là bàn vừa hoàn tất 1 khách. */
 export const STATUS_COMPLETED = 'Hoàn tất';
-
-/**
- * `Trạng thái hiện tại` → desk UI status — chỉ 2 màu:
- *   "Đang tư vấn" → occupied (đỏ) · else (kể cả "Rảnh"/"Chưa có dữ liệu") → available (xanh).
- */
-export const STATUS_OCCUPIED_HINT = 'đang';
-export const STATUS_FREE_HINT = 'rảnh';
 
 /** Bitable table ids, one per logical table (direct mode). */
 export type TableIdMap = Record<TableKey, string | undefined>;
@@ -203,10 +153,9 @@ export const ENV_DEFAULTS = {
   useMock:
     env.VITE_LARK_USE_MOCK === 'true' || (!env.VITE_LARK_API_URL && !env.VITE_LARK_APP_TOKEN),
   tableIds: {
-    dsTradein: (env.VITE_LARK_TABLE_DS_TRADEIN as string | undefined) || '',
-    dsConsult: (env.VITE_LARK_TABLE_DS_CONSULT as string | undefined) || '',
     checkin: (env.VITE_LARK_TABLE_CHECKIN as string | undefined) || '',
     orders: (env.VITE_LARK_TABLE_ORDERS as string | undefined) || '',
     master: (env.VITE_LARK_TABLE_MASTER as string | undefined) || '',
+    dispatch: (env.VITE_LARK_TABLE_DISPATCH as string | undefined) || '',
   } as Record<TableKey, string>,
 } as const;
