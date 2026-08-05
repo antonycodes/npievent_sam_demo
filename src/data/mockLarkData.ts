@@ -24,6 +24,9 @@ const CHUA_NGHIEM_THU = '❌ Chưa nghiệm thu máy';
 const KHONG_THU_CU = '❌ KHÔNG THU CŨ ❌';
 const CO_THU_CU = '✅ CÓ THU CŨ ✅';
 const THU_CU_SAU = '♻️ THU CŨ SAU ♻️';
+// "Backup check" — cùng dạng single-select, hiển thị ngay dưới "Thu cũ check".
+const KHONG_BACKUP = '❌ KHÔNG BACKUP ❌';
+const CO_BACKUP = '✅ CÓ BACKUP ✅';
 
 const IN_FLOW = 'In flow';
 const END_FLOW = 'End flow';
@@ -34,9 +37,9 @@ const HOAN_TAT = 'Hoàn tất';
 // "Thời gian" là mốc check-in (ms) — dùng để sắp khách trước/sau khi 1 NV
 // phục vụ nhiều người cùng lúc. Khách checkin trước phải hiện trước.
 const checkin: LarkRecord[] = [
-  { record_id: 'ci_1', fields: { STT: 1, 'Họ và tên': 'Nguyễn Minh Long', 'SP 1': 'iPhone 17 Pro 512GB | Bạc', 'Note UDTT': '', 'Check nghiệm thu': DA_NGHIEM_THU, 'Thu cũ check': CO_THU_CU, 'End flow': IN_FLOW, 'Thời gian': 1000 } },
-  { record_id: 'ci_2', fields: { STT: 2, 'Họ và tên': 'Huỳnh Ngọc Linh', 'SP 1': 'iPhone 17 Pro Max 256GB | Cam', 'Note UDTT': '', 'Check nghiệm thu': DA_NGHIEM_THU, 'Thu cũ check': CO_THU_CU, 'End flow': END_FLOW, 'Thời gian': 2000 } },
-  { record_id: 'ci_3', fields: { STT: 3, 'Họ và tên': 'Phạm Đức Dũng', 'SP 1': 'iPhone 17 Pro 512GB | Xanh Đậm', 'Note UDTT': 'VIB 1254', 'Check nghiệm thu': CHUA_NGHIEM_THU, 'Thu cũ check': KHONG_THU_CU, 'End flow': IN_FLOW, 'Thời gian': 3000 } },
+  { record_id: 'ci_1', fields: { STT: 1, 'Họ và tên': 'Nguyễn Minh Long', 'SP 1': 'iPhone 17 Pro 512GB | Bạc', 'Note UDTT': '', 'Check nghiệm thu': DA_NGHIEM_THU, 'Thu cũ check': CO_THU_CU, 'Backup check': KHONG_BACKUP, 'End flow': IN_FLOW, 'Thời gian': 1000 } },
+  { record_id: 'ci_2', fields: { STT: 2, 'Họ và tên': 'Huỳnh Ngọc Linh', 'SP 1': 'iPhone 17 Pro Max 256GB | Cam', 'Note UDTT': '', 'Check nghiệm thu': DA_NGHIEM_THU, 'Thu cũ check': CO_THU_CU, 'Backup check': CO_BACKUP, 'End flow': END_FLOW, 'Thời gian': 2000 } },
+  { record_id: 'ci_3', fields: { STT: 3, 'Họ và tên': 'Phạm Đức Dũng', 'SP 1': 'iPhone 17 Pro 512GB | Xanh Đậm', 'Note UDTT': 'VIB 1254', 'Check nghiệm thu': CHUA_NGHIEM_THU, 'Thu cũ check': KHONG_THU_CU, 'Backup check': KHONG_BACKUP, 'End flow': IN_FLOW, 'Thời gian': 3000 } },
   { record_id: 'ci_4', fields: { STT: 4, 'Họ và tên': 'Dương Xuân Long', 'SP 1': 'iPhone 17 Pro 256GB | Cam', 'Note UDTT': 'TCB 998434', 'Check nghiệm thu': DA_NGHIEM_THU, 'Thu cũ check': THU_CU_SAU, 'End flow': IN_FLOW, 'Thời gian': 4000 } },
   { record_id: 'ci_5', fields: { STT: 5, 'Họ và tên': 'Võ Xuân Phong', 'SP 1': 'iPhone 17 Pro Max 256GB | Cam', 'Note UDTT': '', 'Check nghiệm thu': CHUA_NGHIEM_THU, 'End flow': IN_FLOW, 'Thời gian': 5000 } },
   { record_id: 'ci_6', fields: { STT: 6, 'Họ và tên': 'Vũ Xuân Phong', 'SP 1': 'iPhone 17 Pro 1TB | Xanh Đậm', 'Note UDTT': '', 'Check nghiệm thu': DA_NGHIEM_THU, 'Done in Flow': 'Thu cũ', 'End flow': IN_FLOW, 'Thời gian': 6000 } },

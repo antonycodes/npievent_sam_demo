@@ -1707,3 +1707,93 @@ chắn tái hiện được, rồi sửa, rồi verify lại)**:
   vì nguyên nhân gốc (Lark ghi dòng mới thay vì sửa dòng cũ) là suy luận hợp
   lý nhất dựa trên triệu chứng, không phải điều đã thấy trực tiếp trong dữ
   liệu live của họ (không có quyền truy cập base thật).
+
+### Đã điều phối ≠ đã tiếp nhận: khách vẫn phải hiện ở khu chờ chung cho tới khi có dòng "Tiếp nhận" thật (2026-08-05, tiếp #5)
+User báo tiếp 1 quan sát trên bản live: base đã điều phối 15 khách, chỉ 1
+người (STT1) thật sự được NV nhận — nhưng nghi ngờ khu "Đã check-in" đang ẩn
+14 người còn lại. Trước khi sửa, hỏi lại `AskUserQuestion` (không đoán, tránh
+lặp lại sai lầm hỏi rồi mới sửa của các lượt trước) để xác nhận đúng kỳ vọng
+— user trả lời rõ: 14 người CHƯA được nhận PHẢI VẪN nằm ở "Đã check-in".
+
+**Phát hiện quyết định cũ SAI**: khi thêm bảng `Master Điều phối` (mục #3
+phía trên), tôi đã tự ý thêm `dispatchedNames` — loại bất kỳ ai ĐÃ được điều
+phối (có dòng ở Master Điều phối) khỏi CẢ HAI khu chờ chung, với lý do tự đặt
+ra là "tránh đếm trùng với badge ở bàn". User giờ xác nhận: sai — "điều phối"
+(được GÁN bàn) và "tiếp nhận" (NV THỰC SỰ nhận) là 2 việc khác nhau, chỉ việc
+sau mới đủ điều kiện rời khu chờ chung. Badge "khách đang chờ" ở từng bàn là
+THAM CHIẾU CHÉO (cho biết bàn nào sắp có khách tới), không phải cơ chế loại
+trừ — 1 khách hoàn toàn có thể vừa hiện ở khu chung vừa hiện trong badge của
+đúng bàn được gán, cùng lúc.
+
+**Fix**: bỏ hẳn biến `dispatchedNames` (và toàn bộ code tính nó) khỏi
+`larkMapper.ts` — `waitingCheckin` giờ chỉ loại theo `everSeenNames`/
+`activeNames`; `waitingDispatch` chỉ loại theo `activeNames`/`dispatchSeen`/
+`endFlow`. `dispatchByDeskCode` (tính badge riêng từng bàn) giữ nguyên, không
+đổi — 2 cơ chế giờ tách bạch hoàn toàn: khu chung dựa vào `Master`, badge bàn
+dựa vào `Master Điều phối`, không còn phụ thuộc lẫn nhau.
+
+**Verify bằng mock có sẵn** (không cần thêm fixture mới — 2 khách demo `Lê
+Thanh My`/`Võ Thu Trang` đã dispatch vào TV4/TV6 từ trước là đúng ca cần
+test): trước sửa, "Đã check-in" chỉ có 0 người (2 người này bị ẩn); sau sửa,
+"Đã check-in" hiện đúng "2" (#7, #8) — bấm #7 → popover đúng "Khu vực: Đã
+check-in · Trạng thái: Đã check-in — chờ điều phối vào bàn". Badge "1" ở TV4
+và TV6 KHÔNG đổi (vẫn đúng, xác nhận 2 cơ chế độc lập). `tsc -b --noEmit` +
+`npm run build` sạch, không console error thật.
+
+### "Done in Flow" hiện mã option thô (`opt...`) thay vì tên khâu — fix ở Lark, không sửa code (2026-08-05, tiếp #6)
+User gửi screenshot popover "Chờ điều phối" hiện `Trạng thái: Đã hoàn tất
+"Khâu opt12R9Tip"` thay vì tên khâu thật (vd "Tư vấn"). Xác nhận code web
+đọc đúng field `doneInFlow` ('Done in Flow') — lỗi nằm ở phía Lark: field
+này là FORMULA (`type: 20`, `fieldUIType: "Formula"`) nhưng lại khai báo
+`UIType: "SingleSelect"` cho kết quả hiển thị (nhánh cuối công thức trả về
+thẳng cột `Loại` — single-select — của bảng `Master` qua `FIRST(...)`), nên
+REST API trả mã option thô thay vì chữ đã resolve, y hệt cơ chế field
+snapshot `.base` từng thấy (khác REST API thường tự resolve).
+
+Hỏi `AskUserQuestion`: sửa công thức Lark (TEXT-wrap) hay hardcode map
+option→text trong code — user chọn **"Sửa công thức trong Lark (khuyến
+nghị)"**, tức fix KHÔNG ĐỘNG TỚI CODE. Giải mã chính xác công thức thật từ
+file `.base` snapshot đã cache (không đoán): nhánh cuối là
+`FIRST(Master.FILTER(cùng STT).SORTBY(Thời gian, FALSE).[Loại])` — đã gửi
+user hướng dẫn bọc `TEXT(...)` quanh toàn bộ `FIRST(...)` đó trong Lark's
+field editor. Lưu ý: mã `opt12R9Tip` trong screenshot KHÔNG khớp bất kỳ
+option id nào trong snapshot cache (base thật đã tiến hoá xa hơn bản export
+cũ) — càng củng cố lý do chọn fix bằng `TEXT()` (bất biến với option id)
+thay vì hardcode map (sẽ sai ngay khi Lark đổi id). **Chưa có xác nhận từ
+user là đã sửa xong/đã đúng trên bản live.**
+
+### Thêm "Backup check" vào thông tin khách, dưới "Thu cũ check" (2026-08-06)
+User: thêm mục "Backup check" vào thông tin hiển thị của khách, ngay dưới
+"Thu cũ Check", lấy từ cột "Backup check" trong `Master_Check in`. Tên cột
+này KHÔNG có trong file `.base` snapshot đã cache (base thật đã có cột mới
+hơn bản export) — tin theo đúng tên user cho (cùng cách làm với các field
+khác của bảng này, đều verify 1:1 từ Lark thật, ở đây user CHÍNH LÀ nguồn
+xác nhận vì đang test trực tiếp trên live). Field vẫn cấu hình được qua
+Settings nếu tên cột thực tế khác.
+
+**Fix**: thêm `backupCheck` xuyên suốt cùng pattern với `oldDeviceCheck`
+("Thu cũ check") đã có sẵn — 1 field mới, không phải tính năng mới:
+- `larkConfig.ts`: `CheckinFieldMap.backupCheck` + default `'Backup check'`.
+- `larkMapper.ts`: `CheckinIndexEntry.backupCheck`, đọc trong
+  `indexCheckinByName`, truyền qua mọi nơi tạo `DeskCustomer`/
+  `WaitingCustomer` (occupancy, completedCandidates, waitingCheckin, endFlow).
+- `queueMapper.ts`: 2 chỗ tạo `DeskCustomer` (view /tuvanview, /kythuatview)
+  cũng thêm cho khớp type, dù chưa hiển thị ở view đó.
+- `types/desk.ts`: `DeskCustomer.backupCheck?: string | null`.
+- `larkSettings.ts`: `CHECKIN_LABELS.backupCheck` — tự động thêm input vào
+  Settings page (block "Check in" map field động theo `CHECKIN_LABELS`, xem
+  `SettingsPage.tsx`, không cần sửa file đó).
+- `components/CustomerPopover.tsx` + `WaitingPopover.tsx`: thêm `Row label="Backup
+  check"` ngay dưới `Row label="Thu cũ check"`, dùng CHUNG hàm tô màu theo
+  từ khoá (đổi tên hiểu ngầm từ "oldDeviceCheckTone" thành dùng chung cho cả
+  2 field cùng dạng single-select — không đổi tên hàm để tránh diff thừa).
+  `DeskPopover.tsx` (popover bàn tổng, không phải popover từng khách) vốn
+  KHÔNG hiện "Thu cũ check" nên không đụng tới.
+- `data/mockLarkData.ts`: thêm hằng `KHONG_BACKUP`/`CO_BACKUP` + gán vào
+  ci_1..ci_3 (để lại ci_4 KHÔNG có Backup check — test nhánh rỗng "—").
+
+**Verify bằng browser (mock)**: bấm chấm STT1 (Nguyễn Minh Long, KT1) →
+popover hiện đúng "Backup check ❌ KHÔNG BACKUP ❌" ngay dưới "Thu cũ check
+✅ CÓ THU CŨ ✅". Bấm STT6 (Vũ Xuân Phong, khu Chờ điều phối, không có data
+Thu cũ/Backup check) → cả 2 dòng đều hiện "—" đúng như kỳ vọng (fallback rỗng
+đã có sẵn từ `Row` component, không cần code thêm). `tsc -b --noEmit` sạch.

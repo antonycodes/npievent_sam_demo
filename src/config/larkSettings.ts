@@ -183,6 +183,7 @@ export const CHECKIN_LABELS: Record<keyof CheckinFieldMap, string> = {
   note: 'Ghi chú thanh toán',
   deviceAccepted: 'Check nghiệm thu (đã thu máy cũ)',
   oldDeviceCheck: 'Thu cũ check (lựa chọn — hiển thị nguyên văn)',
+  backupCheck: 'Backup check (lựa chọn — hiển thị nguyên văn)',
   doneInFlow: 'Done in Flow (khâu vừa hoàn tất)',
   endFlow: 'End flow (đã xong toàn bộ quy trình)',
   time: 'Thời gian check-in (để sắp thứ tự)',

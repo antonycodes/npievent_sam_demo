@@ -43,9 +43,9 @@ function translateX(x: number): string {
 }
 
 /**
- * "Thu cũ check" là single-select — số lựa chọn tuỳ event (vd "Không thu cũ" /
- * "Có thu cũ" / "Thu cũ sau", có thể đổi trong Lark) nên tô màu theo TỪ KHOÁ
- * trong nhãn thay vì so khớp cứng 1 chuỗi cố định.
+ * "Thu cũ check" / "Backup check" đều là single-select — số lựa chọn tuỳ event
+ * (vd "Không thu cũ" / "Có thu cũ" / "Thu cũ sau", có thể đổi trong Lark) nên
+ * tô màu theo TỪ KHOÁ trong nhãn thay vì so khớp cứng 1 chuỗi cố định.
  */
 function oldDeviceCheckTone(value: string | null | undefined): 'red' | 'amber' | undefined {
   const s = value?.toLowerCase() ?? '';
@@ -107,6 +107,11 @@ export default function WaitingPopover({ zoneLabel, zone, customer, x, y, onClos
             label="Thu cũ check"
             value={customer.oldDeviceCheck ?? null}
             tone={oldDeviceCheckTone(customer.oldDeviceCheck)}
+          />
+          <Row
+            label="Backup check"
+            value={customer.backupCheck ?? null}
+            tone={oldDeviceCheckTone(customer.backupCheck)}
           />
         </dl>
       </div>

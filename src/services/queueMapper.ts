@@ -46,6 +46,7 @@ function indexCheckinDetailByName(rows: LarkRecord[], fm: FieldConfig['checkin']
       paymentNote: cellToString(r.fields[fm.note]),
       deviceAccepted: cellToBool(r.fields[fm.deviceAccepted]),
       oldDeviceCheck: cellToString(r.fields[fm.oldDeviceCheck]),
+      backupCheck: cellToString(r.fields[fm.backupCheck]),
     });
   }
   return m;
@@ -74,6 +75,7 @@ function indexNextByDeskCode(
           paymentNote: null,
           deviceAccepted: null,
           oldDeviceCheck: null,
+          backupCheck: null,
         },
       );
       result.set(deskCode, list);

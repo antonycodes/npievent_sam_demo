@@ -45,6 +45,8 @@ export interface CheckinFieldMap {
    * thu" — đã/chưa NGHIỆM THU máy cũ đó, việc khác).
    */
   oldDeviceCheck: string;
+  /** Cột "Backup check" — hiển thị ngay dưới "Thu cũ check" trong các popover khách. */
+  backupCheck: string;
   /** Khâu vừa hoàn tất (formula) — dùng cho dòng "Trạng thái" ở "Chờ điều phối". */
   doneInFlow: string;
   /** Đã xong toàn bộ quy trình chưa (formula) — giá trị "End flow" | "In flow". */
@@ -110,6 +112,7 @@ export const DEFAULT_CHECKIN_FIELDS: CheckinFieldMap = {
   note: 'Note UDTT',
   deviceAccepted: 'Check nghiệm thu',
   oldDeviceCheck: 'Thu cũ check',
+  backupCheck: 'Backup check',
   doneInFlow: 'Done in Flow',
   endFlow: 'End flow',
   time: 'Thời gian',

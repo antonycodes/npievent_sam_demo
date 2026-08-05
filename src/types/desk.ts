@@ -43,6 +43,7 @@ export interface DeskCustomer {
   paymentNote?: string | null; // Note UDTT (join Check in theo tên)
   deviceAccepted?: boolean | null; // Đã nghiệm thu thiết bị (join Check in theo tên)
   oldDeviceCheck?: string | null; // Cột "Thu cũ check" — nguyên văn lựa chọn (join Check in theo tên)
+  backupCheck?: string | null; // Cột "Backup check" — nguyên văn lựa chọn (join Check in theo tên)
 }
 
 /**
