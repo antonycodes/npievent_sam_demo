@@ -8,6 +8,7 @@
 import { useMemo, useState } from 'react';
 import {
   CHECKIN_LABELS,
+  DISPATCH_BACKUP_FIELD_LABEL,
   DISPATCH_DESK_FIELD_LABELS,
   DISPATCH_FIELD_LABEL,
   DS_MASTER_FIELD_LABELS,
@@ -61,6 +62,9 @@ export default function SettingsPage() {
 
   const setDispatchNameField = (v: string) =>
     setDraft((d) => ({ ...d, fields: { ...d.fields, dispatch: { ...d.fields.dispatch, name: v } } }));
+
+  const setDispatchBackupField = (v: string) =>
+    setDraft((d) => ({ ...d, fields: { ...d.fields, dispatch: { ...d.fields.dispatch, backupDeskField: v } } }));
 
   const setDsMasterField = (k: keyof DsMasterFieldMap, v: string) =>
     setDraft((d) => ({ ...d, fields: { ...d.fields, dsMaster: { ...d.fields.dsMaster, [k]: v } } }));
@@ -175,7 +179,7 @@ export default function SettingsPage() {
             label="Chu kỳ làm mới (giây)"
             type="number"
             value={String(draft.pollSeconds)}
-            onChange={(v) => setTop('pollSeconds', Math.max(5, Number(v) || 30))}
+            onChange={(v) => setTop('pollSeconds', Math.max(5, Number(v) || 5))}
           />
 
           {draft.mode === 'direct' && (
@@ -235,6 +239,11 @@ export default function SettingsPage() {
               label={DISPATCH_DESK_FIELD_LABELS.consult}
               value={draft.fields.dispatch.deskField.consult}
               onChange={(v) => setDispatchDeskField('consult', v)}
+            />
+            <Input
+              label={DISPATCH_BACKUP_FIELD_LABEL}
+              value={draft.fields.dispatch.backupDeskField}
+              onChange={setDispatchBackupField}
             />
           </MapBlock>
 

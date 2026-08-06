@@ -110,7 +110,7 @@ Mỗi endpoint phải trả về đúng **envelope list-records của Lark**:
 
 ```bash
 VITE_LARK_API_URL=https://your-proxy.example.com/api/lark
-VITE_LARK_POLL_MS=30000
+VITE_LARK_POLL_MS=5000
 # để trống app token/direct vars ở cách 2
 ```
 
@@ -205,7 +205,7 @@ VITE_LARK_TABLE_MASTER=<table_id Master>
 VITE_LARK_TABLE_DISPATCH=<table_id Master Điều phối>
 VITE_LARK_TABLE_DS_MASTER=<table_id DS Master>
 VITE_LARK_TABLE_ORDERS=<table_id Danh sách đơn hàng>
-VITE_LARK_POLL_MS=30000
+VITE_LARK_POLL_MS=5000
 ```
 
 App tự gọi: `GET {HOST}/open-apis/bitable/v1/apps/{APP_TOKEN}/tables/{TABLE_ID}/records?page_size=500`
@@ -220,9 +220,9 @@ npm install
 npm run dev        # hoặc npm run build && npm run preview
 ```
 
-- Góc phải header đổi từ **"Mock data"** (vàng) sang **"Lark Base (live · 30s)"**
+- Góc phải header đổi từ **"Mock data"** (vàng) sang **"Lark Base (live · 5s)"**
   (xanh) khi có `VITE_LARK_API_URL` hoặc `VITE_LARK_APP_TOKEN`.
-- Thấy **"Cập nhật: hh:mm:ss"** → đã đồng bộ thành công; tự làm mới mỗi **30s**.
+- Thấy **"Cập nhật: hh:mm:ss"** → đã đồng bộ thành công; mặc định tự làm mới mỗi **5s**.
 - Nếu hiện **"Lỗi đồng bộ"** → mở DevTools > Network xem lỗi:
   - **CORS** → dùng Cách 1 (proxy) hoặc bật CORS ở proxy.
   - **404** → proxy chưa có route đó, hoặc route ở tầng Cloudflare (custom
@@ -236,4 +236,4 @@ npm run dev        # hoặc npm run build && npm run preview
 
 - **Không commit** `.env.local` (đã nằm trong `.gitignore`).
 - Production: **luôn** dùng Cách 1 để không lộ `App Secret` / token ra client.
-- Đổi `VITE_LARK_POLL_MS` nếu muốn refresh nhanh/chậm hơn 30s.
+- Đổi `VITE_LARK_POLL_MS` nếu muốn refresh nhanh/chậm hơn 5s.

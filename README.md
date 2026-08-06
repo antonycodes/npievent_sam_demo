@@ -2,7 +2,7 @@
 
 Bảng điều khiển sơ đồ **tương tác thời gian thực** cho điều phối viên sự kiện ra
 mắt iPhone (cellphoneS). Mô phỏng layout sự kiện thành lưới tọa độ, đồng bộ trạng
-thái bàn từ **Lark Base (Bitable)** qua HTTPS, tự cập nhật mỗi 30 giây.
+thái bàn từ **Lark Base (Bitable)** qua HTTPS, mặc định tự cập nhật mỗi 5 giây.
 
 ## Tính năng
 
@@ -19,7 +19,7 @@ thái bàn từ **Lark Base (Bitable)** qua HTTPS, tự cập nhật mỗi 30 gi
   dọc, mỗi khu 1 lưới 4×3 ô STT riêng.
 - **Sidebar**: Tổng khách đã Check-in + breakdown Tiếp nhận/Trống/Chờ mỗi cụm.
 - **Bộ lọc nhanh**: "Chỉ hiện bàn trống", "Chỉ hiện bàn KT".
-- **Auto-refresh 30s** (polling) + thanh trạng thái đồng bộ.
+- **Auto-refresh 5s** mặc định (polling) + thanh trạng thái đồng bộ.
 - **Trang Cài đặt Lark** (`#/settings`): nhập key kết nối và ánh xạ tên cột Lark
   ↔ trường web ngay trong web (không cần sửa code/env) — xem mục dưới.
 
@@ -101,7 +101,7 @@ Copy `.env.example` → `.env.local`:
   nhúng Wiki.)
 - **Mode 2 (trực tiếp):** `VITE_LARK_APP_TOKEN` + `VITE_LARK_ACCESS_TOKEN` +
   các biến `VITE_LARK_TABLE_*` (mỗi Table_ID).
-- Không cấu hình gì → chạy mock data đi kèm. `VITE_LARK_POLL_MS` mặc định 30000.
+- Không cấu hình gì → chạy mock data đi kèm. `VITE_LARK_POLL_MS` mặc định 5000.
 
 Tên cột mặc định khớp schema hiện tại và nằm trong `src/config/larkConfig.ts`
 (`DEFAULT_CHECKIN_FIELDS` / `DEFAULT_MASTER_FIELDS` / `DEFAULT_DISPATCH_FIELDS`

@@ -55,7 +55,11 @@ export function defaultSettings(): LarkSettings {
     fields: {
       checkin: { ...DEFAULT_CHECKIN_FIELDS },
       master: { ...DEFAULT_MASTER_FIELDS },
-      dispatch: { deskField: { ...DEFAULT_DISPATCH_FIELDS.deskField }, name: DEFAULT_DISPATCH_FIELDS.name },
+      dispatch: {
+        deskField: { ...DEFAULT_DISPATCH_FIELDS.deskField },
+        backupDeskField: DEFAULT_DISPATCH_FIELDS.backupDeskField,
+        name: DEFAULT_DISPATCH_FIELDS.name,
+      },
       dsMaster: { ...DEFAULT_DS_MASTER_FIELDS },
     },
   };
@@ -75,6 +79,7 @@ function hydrate(raw: unknown): LarkSettings {
       master: { ...base.fields.master, ...(p.fields?.master ?? {}) },
       dispatch: {
         deskField: { ...base.fields.dispatch.deskField, ...(p.fields?.dispatch?.deskField ?? {}) },
+        backupDeskField: p.fields?.dispatch?.backupDeskField ?? base.fields.dispatch.backupDeskField,
         name: p.fields?.dispatch?.name ?? base.fields.dispatch.name,
       },
       dsMaster: { ...base.fields.dsMaster, ...(p.fields?.dsMaster ?? {}) },
@@ -149,7 +154,7 @@ export function toRuntimeConfig(s: LarkSettings = settings): LarkRuntimeConfig {
     appToken: s.mode === 'direct' ? str(s.appToken) : undefined,
     accessToken: str(s.accessToken),
     tableIds,
-    pollMs: Math.max(5, s.pollSeconds || 30) * 1000,
+    pollMs: Math.max(5, s.pollSeconds || 5) * 1000,
   };
 }
 
@@ -194,6 +199,7 @@ export const MASTER_FIELD_LABELS: Record<keyof MasterFieldMap, string> = {
   status: 'Trạng thái (Tiếp nhận/Hoàn tất)',
   name: 'Họ và tên',
   staff: 'NV phụ trách (person field)',
+  stage: 'Loại khâu (Loại 2 — Tư vấn/Thu cũ/Backup)',
   time: 'Thời gian (để sắp thứ tự nhiều khách/bàn)',
 };
 
@@ -202,10 +208,13 @@ export const DISPATCH_DESK_FIELD_LABELS: Record<ClusterKey, string> = {
   kythuat: 'Cột mã bàn — Kỹ thuật (vd "DS thu cũ")',
   consult: 'Cột mã bàn — Tư vấn (vd "DS Tư vấn")',
 };
+export const DISPATCH_BACKUP_FIELD_LABEL = 'Cột mã bàn — Backup (vd "DS Backup", chỉ hiển thị trong popover khách)';
 
 export const DS_MASTER_FIELD_LABELS: Record<keyof DsMasterFieldMap, string> = {
   code: 'Mã bàn (khớp mã bàn trên sơ đồ)',
   nextStt: 'STT tiếp theo',
+  staff: 'NV phụ trách (person field — dự phòng suy mã bàn khi Master thiếu TV_MãNV)',
+  loai: 'Loại (lọc dòng "Tư vấn"/"Thu cũ" — bỏ qua "Backup"/"Kho" khi suy mã bàn dự phòng)',
 };
 
 export const TABLE_LABELS: Record<TableKey, string> = {

@@ -11,6 +11,17 @@ interface EndFlowTableProps {
   onClose: () => void;
 }
 
+/**
+ * Cột "Nhân sự" — nguyên văn 3 cột mã bàn Điều phối (DS Tư vấn/DS Thu
+ * cũ/DS Backup, 2026-08-06), cùng cú pháp với `WaitingPopover` — khách đã
+ * "End flow" không gắn cố định với 1 NV cụ thể nào trong dữ liệu hiện có
+ * (có thể đã qua nhiều bàn/khâu), nên hiện đủ cả 3 mã bàn từng điều phối tới
+ * thay vì chỉ 1 tên NV.
+ */
+function dispatchSummary(c: WaitingCustomer): string {
+  return `(${c.dsTuVan ?? ''})(${c.dsThuCu ?? ''})(${c.dsBackup ?? ''})`;
+}
+
 export default function EndFlowTable({ customers, onClose }: EndFlowTableProps) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -57,7 +68,8 @@ export default function EndFlowTable({ customers, onClose }: EndFlowTableProps) 
                   <th className="py-2 pr-3">Tên sản phẩm</th>
                   <th className="py-2 pr-3">Ghi chú thanh toán</th>
                   <th className="py-2 pr-3">Check thu máy cũ</th>
-                  <th className="py-2">Khâu cuối</th>
+                  <th className="py-2 pr-3">Khâu cuối</th>
+                  <th className="py-2">Nhân sự</th>
                 </tr>
               </thead>
               <tbody>
@@ -70,7 +82,8 @@ export default function EndFlowTable({ customers, onClose }: EndFlowTableProps) 
                     <td className={`py-2 pr-3 ${c.deviceAccepted ? 'font-bold text-red-600' : 'text-neutral-600'}`}>
                       {c.deviceAccepted ? 'Đã nghiệm thu' : 'Chưa nghiệm thu'}
                     </td>
-                    <td className="py-2 text-neutral-600">{c.doneInFlow ?? '—'}</td>
+                    <td className="py-2 pr-3 text-neutral-600">{c.doneInFlow ?? '—'}</td>
+                    <td className="py-2 text-neutral-600">{dispatchSummary(c)}</td>
                   </tr>
                 ))}
               </tbody>

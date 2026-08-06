@@ -44,6 +44,11 @@ export interface DeskCustomer {
   deviceAccepted?: boolean | null; // Đã nghiệm thu thiết bị (join Check in theo tên)
   oldDeviceCheck?: string | null; // Cột "Thu cũ check" — nguyên văn lựa chọn (join Check in theo tên)
   backupCheck?: string | null; // Cột "Backup check" — nguyên văn lựa chọn (join Check in theo tên)
+  // 3 mã khâu từ `Master Điều phối` (join theo tên, cộng dồn qua nhiều dòng).
+  // Backup giữ mã BK riêng dù cùng người/vị trí với TV hoặc TC.
+  dsTuVan?: string | null; // Cột "DS Tư vấn"
+  dsThuCu?: string | null; // Cột "DS Thu cũ"
+  dsBackup?: string | null; // Cột "DS Backup"
 }
 
 /**

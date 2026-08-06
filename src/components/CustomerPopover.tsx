@@ -2,6 +2,11 @@
  * CustomerPopover — thông tin 1 khách khi bấm vào chấm STT.
  *
  * Neo ngay dưới bàn (nơi có các chấm), tự kẹp mép trái/phải, đóng bằng ×/Escape.
+ *
+ * Dòng "Nhân sự" (2026-08-06, chốt lại sau vài lượt sửa qua lại): LUÔN hiện
+ * nguyên văn mã Điều phối "(DS Tư vấn)(DS Thu cũ)(DS Backup)" — CÙNG định
+ * dạng với `WaitingPopover`/`EndFlowTable`, không đổi sang tên NV dù khách đã
+ * tiếp nhận (tên NV đã có sẵn ở dòng "Nhân viên" ngay phía trên).
  */
 import { useEffect } from 'react';
 import { CLUSTER_LABELS } from '@/config/layoutConfig';
@@ -30,6 +35,11 @@ function oldDeviceCheckTone(value: string | null | undefined): 'red' | 'amber' |
   if (s.includes('sau')) return 'amber';
   if (s.includes('có')) return 'red';
   return undefined;
+}
+
+/** Dòng "Nhân sự" — nguyên văn 3 cột mã bàn Điều phối, cùng cú pháp với `WaitingPopover`/`EndFlowTable`. */
+function dispatchSummary(customer: DeskCustomer): string {
+  return `(${customer.dsTuVan ?? ''})(${customer.dsThuCu ?? ''})(${customer.dsBackup ?? ''})`;
 }
 
 export default function CustomerPopover({ desk, customer, onClose }: CustomerPopoverProps) {
@@ -95,6 +105,7 @@ export default function CustomerPopover({ desk, customer, onClose }: CustomerPop
             value={customer.backupCheck ?? null}
             tone={oldDeviceCheckTone(customer.backupCheck)}
           />
+          <Row label="Nhân sự" value={dispatchSummary(customer)} />
         </dl>
       </div>
     </div>
