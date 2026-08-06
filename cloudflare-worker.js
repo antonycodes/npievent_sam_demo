@@ -8,6 +8,7 @@
  *
  * Dashboard trỏ vào:  API URL = https://<worker>.workers.dev/api/lark
  * (Worker lấy tên bảng ở segment cuối, nên /api/lark/<table> hay /<table> đều được.)
+ * `GET /` hoặc `GET /health` → liệt kê các table key đang hỗ trợ, không cần Lark token.
  *
  * **Schema (2026-08-05, "no DS Master")**: `TB_CHECKIN` = table id của
  * "Master_Check in". `TB_MASTER` = table id của bảng "Master" (log NV tiếp
@@ -16,8 +17,21 @@
  * bàn, chờ NV nhận — nguồn số "khách đang chờ" mỗi bàn).
  *
  * **`TB_DS_MASTER`** (thêm lại 2026-08-05, tiếp) = table id của "DS Master" —
- * web CHỈ đọc đúng 1 field ("STT tiếp theo" mỗi bàn) từ bảng này, không dùng
- * cho occupancy/status/staff nữa (những cái đó đọc từ `Master`).
+ * web đọc field "STT tiếp theo" + "NV Tư vấn"/"Loại" mỗi bàn từ bảng này
+ * (dự phòng suy mã bàn khi `TV_MãNV` không tự resolve được, xem
+ * `larkMapper.ts`'s `indexDeskCodeByStaffName`). Bug thật 2026-08-06:
+ * `TABLE_ENV` từng thiếu hẳn key `dsMaster` — `/dsMaster` luôn trả rỗng y hệt
+ * bảng thật sự không có dữ liệu, mất nhiều vòng debug mới lộ ra.
+ *
+ * **Tự resolve mã option Lark thô** (2026-08-06, đồng bộ từ bản đang deploy
+ * thật — tiến bộ hơn bản cũ chỉ lọc mã "opt..." phía web): với field có
+ * DANH SÁCH OPTION TĨNH khai báo ngay trên field (formula/single-select
+ * bình thường), REST API trả mảng mã option thô (`["opt..."]`) thay vì chữ
+ * hiển thị — gọi thêm `GET .../fields` 1 lần/bảng (cache 10 phút) lấy map
+ * optionId→tên, tự thay thế trước khi trả về client. KHÔNG bao phủ được
+ * field kiểu Lookup có options ĐỘNG (vd `TV_MãNV`, options lấy từ bảng khác
+ * qua `optionsRule`, không có trong `fields` API) — code web (`larkMapper.ts`)
+ * vẫn cần tự suy mã bàn qua NV làm dự phòng cho đúng trường hợp này.
  *
  * **Base nhúng trong Wiki**: nếu bạn lấy `LARK_APP_TOKEN` từ 1 URL dạng
  * `.../wiki/<token>?table=...` (không phải `.../base/<token>?table=...`),
@@ -88,15 +102,62 @@ function json(body, status = 200) {
   });
 }
 
+// Cache map optionId→tên hiển thị theo TỪNG BẢNG (10 phút) — tránh gọi lại
+// API field-metadata mỗi request.
+const fieldOptionCache = new Map();
+const FIELD_CACHE_MS = 10 * 60 * 1000;
+
+/** Lấy `{ tên field → Map(optionId → tên hiển thị) }` cho các field CÓ danh sách option tĩnh trong 1 bảng. */
+async function getFieldOptionMaps(env, host, appToken, token, tableId) {
+  const now = Date.now();
+  const hit = fieldOptionCache.get(tableId);
+  if (hit && now < hit.expiresAt) return hit.maps;
+
+  const url = `${host}/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/fields?page_size=200`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  const data = await res.json();
+
+  const maps = {};
+  for (const f of data?.data?.items ?? []) {
+    const options = f.property?.type?.ui_property?.options;
+    if (Array.isArray(options)) maps[f.field_name] = new Map(options.map((o) => [o.id, o.name]));
+  }
+  fieldOptionCache.set(tableId, { maps, expiresAt: now + FIELD_CACHE_MS });
+  return maps;
+}
+
+/** Thay mã option thô (`["opt..."]`) bằng tên hiển thị cho mọi field có option tĩnh — sửa `records` tại chỗ. */
+function resolveOptionRefs(records, fieldMaps) {
+  for (const rec of records) {
+    for (const [fieldName, optMap] of Object.entries(fieldMaps)) {
+      const v = rec.fields?.[fieldName];
+      if (Array.isArray(v) && v.length && typeof v[0] === 'string' && optMap.has(v[0])) {
+        rec.fields[fieldName] = v.map((id) => optMap.get(id) ?? id).join(', ');
+      }
+    }
+  }
+}
+
 export default {
   async fetch(request, env) {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
 
     const table = new URL(request.url).pathname.split('/').filter(Boolean).pop();
     const host = (env.LARK_HOST || 'https://open.larksuite.com').replace(/\/+$/, '');
-    const tableId = env[TABLE_ENV[table]];
 
-    if (!tableId) return json({ code: 0, msg: 'success', data: { items: [], has_more: false, total: 0 } });
+    if (table === '' || table === 'health') {
+      return json({ code: 0, msg: 'ok', tables: Object.keys(TABLE_ENV) });
+    }
+
+    const envKey = TABLE_ENV[table];
+    const tableId = envKey ? env[envKey] : undefined;
+
+    // Thiếu secret (hoặc key bảng không tồn tại trong TABLE_ENV) — báo lỗi rõ
+    // ràng thay vì giả vờ thành công. Trước đây trả `code:0, items:[]` trông
+    // Y HỆT 1 bảng thật sự rỗng — bug thật 2026-08-06 (thiếu hẳn key
+    // "dsMaster") mất nhiều vòng debug mới lộ ra vì im lặng "thành công".
+    if (!envKey) return json({ code: -1, msg: `Unknown table key "${table}"`, data: { items: [] } }, 400);
+    if (!tableId) return json({ code: -1, msg: `Missing Cloudflare secret "${envKey}" for table "${table}"`, data: { items: [] } }, 500);
 
     try {
       const token = await getToken(env, host);
@@ -113,6 +174,9 @@ export default {
         items = items.concat(jj.data?.items ?? []);
         pageToken = jj.data?.has_more ? jj.data.page_token : null;
       } while (pageToken);
+
+      const fieldMaps = await getFieldOptionMaps(env, host, appToken, token, tableId);
+      resolveOptionRefs(items, fieldMaps);
 
       return json({ code: 0, msg: 'success', data: { items, has_more: false, total: items.length } });
     } catch (e) {

@@ -13,7 +13,7 @@
 import type { FieldConfig } from '@/config/larkConfig';
 import { toFieldConfig } from '@/config/larkSettings';
 import { ALL_POSITIONS } from '@/config/layoutConfig';
-import { cellToBool, cellToString, mapDeskStates } from './larkMapper';
+import { cellToBool, cellToString, mapDeskStates, normalizeDeskCode } from './larkMapper';
 import type { ClusterKey, DeskCustomer } from '@/types/desk';
 import type { LarkRecord, LarkTables } from './larkTypes';
 
@@ -53,6 +53,26 @@ function indexCheckinDetailByName(rows: LarkRecord[], fm: FieldConfig['checkin']
 }
 
 /** Khách đã điều phối vào từng mã bàn, CHƯA lọc theo "đã đang được phục vụ chưa" (lọc ở `mapQueueStates`). */
+const END_FLOW_DONE = 'end flow';
+
+/**
+ * Tên khách đã "End flow" (xong toàn bộ quy trình, Check-in cột "End flow")
+ * — viết riêng thay vì import từ larkMapper.ts's `isEndFlowValue` (private,
+ * xem module doc: cố tình tách biệt 2 mapper). Dùng để loại khỏi "STT tiếp
+ * theo" — dòng `Master Điều phối` gán khách vào bàn có thể chưa/không bị xoá
+ * sau khi họ đã hoàn tất toàn bộ, không nên tính là "đang chờ" nữa (bug thật
+ * user báo 2026-08-06: khách đã End Flow vẫn hiện là STT tiếp theo).
+ */
+function indexEndFlowNames(rows: LarkRecord[], fm: FieldConfig['checkin']): Set<string> {
+  const result = new Set<string>();
+  for (const r of rows) {
+    const name = cellToString(r.fields[fm.name]);
+    const endFlow = cellToString(r.fields[fm.endFlow]);
+    if (name && endFlow?.trim().toLowerCase() === END_FLOW_DONE) result.add(name);
+  }
+  return result;
+}
+
 function indexNextByDeskCode(
   rows: LarkRecord[],
   fm: FieldConfig['dispatch'],
@@ -64,7 +84,7 @@ function indexNextByDeskCode(
     const name = cellToString(r.fields[fm.name]);
     if (!name) continue;
     for (const field of deskFields) {
-      const deskCode = cellToString(r.fields[field]);
+      const deskCode = normalizeDeskCode(cellToString(r.fields[field]));
       if (!deskCode) continue;
       const list = result.get(deskCode) ?? [];
       list.push(
@@ -91,13 +111,16 @@ export function mapQueueStates(
   const { statesById } = mapDeskStates(tables, fields);
   const checkinByName = indexCheckinDetailByName(tables.checkin, fields.checkin);
   const nextByDeskCode = indexNextByDeskCode(tables.dispatch, fields.dispatch, checkinByName);
+  const endFlowNames = indexEndFlowNames(tables.checkin, fields.checkin);
 
   const out: Record<string, DeskQueueState> = {};
   for (const pos of ALL_POSITIONS) {
     const state = statesById[pos.id];
     const current = state?.receivedCustomers ?? [];
     const servedNames = new Set(current.map((c) => c.name).filter((n): n is string => Boolean(n)));
-    const next = (nextByDeskCode.get(pos.id) ?? []).filter((c) => !c.name || !servedNames.has(c.name));
+    const next = (nextByDeskCode.get(pos.id) ?? []).filter(
+      (c) => !c.name || (!servedNames.has(c.name) && !endFlowNames.has(c.name)),
+    );
     out[pos.id] = {
       id: pos.id,
       label: pos.label,

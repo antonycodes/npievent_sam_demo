@@ -55,6 +55,20 @@ function oldDeviceCheckTone(value: string | null | undefined): 'red' | 'amber' |
   return undefined;
 }
 
+/**
+ * Dòng "Nhân sự" — nguyên văn 3 cột mã bàn trong `Master Điều phối` (DS Tư
+ * vấn/DS Thu cũ/DS Backup), theo đúng cú pháp user yêu cầu (2026-08-06):
+ * "(DS Tư vấn)(DS Thu cũ)(DS Backup)" — rỗng thì để trống giữa 2 ngoặc, KHÔNG
+ * gộp/lược bớt, để điều phối viên thấy ngay cột nào đang có/không có giá trị.
+ * CHỈ hiện ở đây (khách CHƯA tiếp nhận — xem thông tin Điều phối GÁN cho ai)
+ * — khác `CustomerPopover` (khách ĐÃ tiếp nhận), ở đó dòng "Nhân viên"
+ * (`desk.staffName`) đã đủ trả lời "ai đang phục vụ", không cần dòng này nữa
+ * (2026-08-06, tiếp, theo yêu cầu rõ của user).
+ */
+function dispatchSummary(customer: WaitingCustomer): string {
+  return `(${customer.dsTuVan ?? ''})(${customer.dsThuCu ?? ''})(${customer.dsBackup ?? ''})`;
+}
+
 export default function WaitingPopover({ zoneLabel, zone, customer, x, y, onClose }: WaitingPopoverProps) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -113,6 +127,7 @@ export default function WaitingPopover({ zoneLabel, zone, customer, x, y, onClos
             value={customer.backupCheck ?? null}
             tone={oldDeviceCheckTone(customer.backupCheck)}
           />
+          <Row label="Nhân sự" value={dispatchSummary(customer)} />
         </dl>
       </div>
     </div>

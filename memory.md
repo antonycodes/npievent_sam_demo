@@ -1797,3 +1797,375 @@ popover hiện đúng "Backup check ❌ KHÔNG BACKUP ❌" ngay dưới "Thu cũ
 ✅ CÓ THU CŨ ✅". Bấm STT6 (Vũ Xuân Phong, khu Chờ điều phối, không có data
 Thu cũ/Backup check) → cả 2 dòng đều hiện "—" đúng như kỳ vọng (fallback rỗng
 đã có sẵn từ `Row` component, không cần code thêm). `tsc -b --noEmit` sạch.
+
+### NV Backup dùng chung vị trí KT với NV Thu cũ — chuẩn hoá mã bàn "BK<n>" → "TC<n>" (2026-08-06, tiếp)
+User: "Nhân viên Backup cũng là Nhân viên thu cũ, gọi chung là KT, ví dụ KT1
+có thể là TC1 hoặc BK1, sửa lại logic này". Tức: 3 vị trí vật lý KT1–KT3 trên
+sơ đồ (`ALL_POSITIONS`, id cố định "TC1..3" — khoá join, xem layoutConfig.ts)
+có thể do NV Thu cũ (Lark ghi mã bàn "TC<n>") HOẶC NV Backup (Lark ghi
+"BK<n>") phụ trách tại 1 thời điểm — cùng 1 vị trí vật lý, không phải 2 bàn
+khác nhau. Trước fix, mọi chỗ group theo mã bàn (`Master.TV_MãNV`, `Master
+Điều phối`'s `DS thu cũ`, `DS Master`'s `STT bàn`) so khớp CHÍNH XÁC với
+`pos.id` — 1 dòng mang mã "BK1" sẽ không khớp bất kỳ vị trí nào, khách/NV đó
+biến mất khỏi sơ đồ.
+
+**Fix**: thêm `normalizeDeskCode()` (export từ `larkMapper.ts`) — regex
+`/^BK(\d+)$/i` → `TC$1`, còn lại giữ nguyên. Áp dụng NGAY KHI đọc mã bàn thô
+từ Lark (1 điểm nguồn duy nhất mỗi bảng, không sửa logic downstream):
+- `larkMapper.ts`: `latestByDeskAndName` (Master.`TV_MãNV`),
+  `indexDispatchByDeskCode` (Master Điều phối's `DS thu cũ`/`DS Tư vấn`),
+  `indexNextSttByDeskCode` (DS Master's `STT bàn`).
+- `queueMapper.ts`: `indexNextByDeskCode` (đọc cùng cột dispatch cho view
+  /tuvanview, /kythuatview) — import `normalizeDeskCode` từ `larkMapper.ts`.
+`clusterFromDeskCode` không cần sửa — luôn nhận input đã chuẩn hoá nên vẫn
+chỉ cần biết "TC..." → kythuat.
+
+**Phát hiện phụ khi debug**: `larkMapper.ts` có 1 byte NUL (`\x00`) lẫn vào
+literal `` `${deskCode} ${name}` `` ở `latestByDeskAndName` (từ trước phiên
+này, không phải do fix lần này) — khiến `grep`/`file` coi cả file là binary,
+tự dưng không tìm được match dù nội dung đúng. Không phải bug chức năng (NUL
+vẫn là ký tự string hợp lệ trong JS, key vẫn unique) nhưng phá công cụ dòng
+lệnh nên đã thay bằng khoảng trắng thường cho sạch.
+
+**Verify bằng mock**: đổi `ma_4` (Dương Xuân Long, trước là "TC3") thành
+`'TV_MãNV': 'BK3'` + tên NV nối thêm "(Backup)" để phân biệt rõ trên UI. Bấm
+KT3 trên board → vẫn ĐỎ (occupied), popover đúng "Tên NV: LONG NHÂN_NV_AM&WS
+(Backup)" + "Khách đang tiếp nhận (1/2)" + "#4 Dương Xuân Long" — y hệt hành
+vi trước khi đổi mã bàn, xác nhận "BK3" quy đúng về vị trí KT3. `tsc -b
+--noEmit` sạch.
+
+### Bug thật: dòng "Hoàn tất" trong Master bị bỏ trống TV_MãNV → mất cả occupancy lẫn "Chờ điều phối" (2026-08-06, tiếp)
+User báo "Chờ điều phối" biến mất trên bản LIVE. Quá trình điều tra (không
+đoán, xin dữ liệu thật từng bước theo đúng nếp đã học của session):
+1. Nghi Table ID sai → user tự dò, khớp 100% với proxy (10/10 bảng) → loại.
+2. Xin JSON thô `<proxy>/master` → thấy rõ: `"Trạng thái":"Hoàn tất"` đúng,
+   `"Họ và tên"` đúng, nhưng **`"TV_MãNV":null`** — cả 2 dòng test trong bảng
+   `SS_Master`. Đây là bảng Master ĐANG được proxy trỏ tới thật (tên bảng đổi
+   từ "Master" cũ sang "SS_Master", nhưng field cấu trúc y hệt bảng Master đã
+   decode trước đó — không phải sai bảng).
+3. Hỏi lại user: dữ liệu THẬT có luôn điền TV_MãNV không? → **Có** — 2 dòng
+   test kia chỉ là user tự tạo để thử, chưa điền mã bàn, KHÔNG phải lỗi hệ
+   thống trên diện rộng.
+
+**Nguyên nhân gốc trong code**: `latestByDeskAndName` (từ fix dedupe
+2026-08-05) yêu cầu BẮT BUỘC có `TV_MãNV` mới xử lý 1 dòng `Master` — thiếu
+mã bàn thì dòng bị bỏ qua HOÀN TOÀN, mất luôn cả occupancy (bàn không đỏ) lẫn
+"Chờ điều phối" (dòng Hoàn tất không tính). Đúng ra chỉ là edge case hiếm
+(dòng test của user), nhưng user đề xuất thêm 1 lớp AN TOÀN: **"TV_MãNV có
+thể thay thế = Người"** — suy mã bàn từ NV phụ trách khi thiếu, vì mỗi NV Tư
+vấn gắn cố định 1 bàn (bảng `DS Master`, field "NV Tư vấn" + "STT bàn" —
+verify được từ `.base` snapshot cache, KHÔNG đoán: `tblPlUlMm0gFfqEg`'s
+`fldJRjsnyl | NV Tư vấn | User` + `fld5rSOixW | STT bàn | Text`).
+
+**Fix**: thêm `DsMasterFieldMap.staff` (default `'NV Tư vấn'`) trong
+`larkConfig.ts` + nhãn trong `larkSettings.ts`. `larkMapper.ts`: hàm mới
+`indexDeskCodeByStaffName()` (tên NV → mã bàn, qua `DS Master`, có
+`normalizeDeskCode`). `latestByDeskAndName()` nhận thêm tham số map này —
+khi `TV_MãNV` rỗng nhưng `Người` có giá trị, tra map trước khi bỏ qua dòng;
+không khớp NV nào thì vẫn bỏ qua như cũ (không đoán bừa). `mapDeskStates`
+build map này từ `tables.dsMaster` TRƯỚC khi gọi `latestByDeskAndName`.
+`DS Master` giờ đọc 2 field (STT tiếp theo + NV Tư vấn) thay vì 1 — cập nhật
+lại mọi doc comment nói "CHỈ 1 field" ở `larkConfig.ts`/`larkMapper.ts`.
+
+**Verify bằng mock**: thêm khách mới "Lâm Bảo Ngọc" (STT12, `ci_12`) với dòng
+`master` (`ma_11`) KHÔNG CÓ KEY `TV_MãNV` LUÔN (giống hệt cấu trúc JSON thật
+user gửi, không phải chỉ để rỗng) — chỉ có `Trạng thái: Hoàn tất` +
+`Người: 'Đình Bảo_NV_VHWS'`; thêm dòng `dsMaster` map NV đó → `TV8`. Bấm STT
+12 ở "Chờ điều phối" → đúng "Khu vực: Chờ điều phối", "Trạng thái: Đã hoàn
+tất 'Khâu Tư vấn'" (suy đúng cụm `consult` từ TV8, dù bản thân dòng Master
+không hề có mã bàn) — xác nhận fallback hoạt động đúng. `tsc -b --noEmit`
+sạch. **Chưa có xác nhận lại từ user trên bản live** (đợi họ tự điền lại mã
+bàn cho 2 dòng test, hoặc gặp đúng ca thiếu mã bàn thật để xác nhận fallback
+hoạt động).
+
+### Thêm dòng "Nhân sự" trong popover khách: 3 cột mã bàn thô từ Master Điều phối (2026-08-06, tiếp)
+User: hiển thị thêm "DS Tư vấn, DS Thu cũ, DS Backup" trong bảng `Master
+Điều phối` ở popover khách khi bấm STT, theo đúng cú pháp
+`Nhân sự: (DS TV)(DS Thu cũ)(DS Backup)`. Đây là tính năng hiển thị THUẦN
+TUÝ — 3 giá trị hiện NGUYÊN VĂN, không tính toán/lọc gì, khác hẳn
+`indexDispatchByDeskCode` (dùng cho đếm "khách đang chờ" mỗi bàn — vẫn giữ
+nguyên, chỉ đọc 2/3 cột như cũ).
+
+**Fix**: `larkConfig.ts`: thêm `DispatchFieldMap.backupDeskField` (default
+`'DS Backup'`) + nhãn trong `larkSettings.ts` (`DISPATCH_BACKUP_FIELD_LABEL`)
++ input thứ 4 trong khối "Master Điều phối" ở `SettingsPage.tsx`. `types/desk.ts`:
+`DeskCustomer` thêm `dsTuVan`/`dsThuCu`/`dsBackup`. `larkMapper.ts`: hàm mới
+`indexDispatchDetailByName()` (tên khách → 3 giá trị thô, join theo "Họ và
+tên" — riêng biệt hoàn toàn với `indexDispatchByDeskCode`), gắn vào MỌI nơi
+tạo `DeskCustomer`/`WaitingCustomer` (occupancy, completedCandidates,
+waitingCheckin, endFlow) — cùng pattern với `backupCheck` trước đó.
+`queueMapper.ts` (view /tuvanview, /kythuatview) KHÔNG đụng tới — view đó
+không hiển thị dòng này, thêm vào sẽ phải join thêm 1 bảng không cần thiết.
+
+**UI**: `CustomerPopover.tsx` + `WaitingPopover.tsx` (2 nơi bấm STT sẽ ra
+popover khách) thêm hàm `dispatchSummary()` build đúng chuỗi
+`(a)(b)(c)` rồi render `Row label="Nhân sự"` ngay dưới "Backup check" — CỐ Ý
+không dùng fallback "—" của `Row` khi cả 3 rỗng (chuỗi luôn có ký tự ngoặc
+nên không rơi vào nhánh rỗng), để điều phối viên thấy rõ cột nào có/không có
+giá trị qua vị trí trống giữa ngoặc, đúng yêu cầu "theo cú pháp" của user.
+`DeskPopover.tsx` (popover bàn tổng, không phải popover từng khách) không đụng.
+
+**Verify bằng mock**: thêm `dp_3` (`Hoàng Anh Tú` — chỉ set `DS Backup:
+'BK2'`) → bấm chấm STT9 ở KT1 → đúng "Nhân sự: ()()(BK2)". Bấm STT7 (Lê
+Thanh My, khu "Đã check-in", có sẵn `DS Tư vấn: 'TV4'`) → đúng "Nhân sự:
+(TV4)()()" ở `WaitingPopover`. Cả 2 popover đều hiển thị đúng, xác nhận
+pipeline hoạt động cho cả khách đang chiếm bàn lẫn khách ở khu chờ. `tsc -b
+--noEmit` sạch.
+
+### Bug thật (tiếp): TV_MãNV CÓ giá trị nhưng là mã option Lark thô, không phải "TV5" (2026-08-06, tiếp)
+User báo tiếp: dòng Master mới (Mã TC 37, Nguyễn Minh Long, TV5, "Trạng
+thái"="Tiếp nhận", NV="THIỆU NHÂN_NV_VHWS") đã ghi đủ, KHÔNG rỗng `TV_MãNV`,
+nhưng TV5 vẫn không đổi trạng thái. Hỏi lại user field đó "đang là dạng gì"
+→ xác nhận **"single option"** — tức API trả mảng 1 phần tử (giống hệt
+`"Check in flow":["optrBCIp6y"]` đã thấy trong JSON trước đó), không phải
+chuỗi thường. `cellToString` xử lý mảng-string đúng kỹ thuật (trả về phần tử
+đó nguyên văn) nhưng phần tử đó chính là MÃ OPTION LARK THÔ (dạng
+"opt6TDHxPP"), không phải "TV5" đã resolve — cùng CƠ CHẾ với bug "Done in
+Flow" (field single-select dùng `optionsType: 1` — options ĐỘNG lấy từ bảng
+khác qua `optionsRule`, thay vì list cố định — REST API không tự resolve
+được). Khác "Done in Flow": đây không phải formula nên KHÔNG sửa bằng công
+thức Lark được — phải lọc ở code.
+
+**Fix**: `larkMapper.ts` — thêm `isUnresolvedOptionId()` (regex
+`/^opt[A-Za-z0-9]{6,}$/`) và gọi ngay trong `normalizeDeskCode()` — mã trông
+như option Lark thô thì coi như KHÔNG có giá trị (trả `null`), thay vì dùng
+thẳng làm khoá bàn (sẽ tạo "bàn ma" không khớp `ALL_POSITIONS` nào, y hệt
+triệu chứng user báo). Vì áp dụng NGAY TẠI `normalizeDeskCode` (điểm chung
+của cả 4 nơi đọc mã bàn thô), khi rơi về `null` ở `latestByDeskAndName`, nó
+TỰ ĐỘNG rơi tiếp vào fallback qua NV (`deskCodeByStaffName`) đã xây dựng ở
+mục ngay phía trên — 2 fix nối tiếp nhau xử lý đúng ca này mà không cần thêm
+logic riêng: "TV_MãNV" rác → coi như rỗng → suy qua "Người" → khớp `DS
+Master` → ra "TV5" đúng.
+
+**Verify bằng mock**: thêm khách mới "Trịnh Bảo Châu" (STT13, `ci_13`), dòng
+`master` (`ma_12`) có `TV_MãNV: 'opt6TDHxPP'` (mã rác y hệt định dạng thật),
+`Trạng thái: Tiếp nhận`, `Người: 'THIỆU NHÂN_NV_VHWS'`; thêm `dsm_4` map NV
+đó → `TV5`. Kết quả: TV5 chuyển ĐỎ đúng, bấm vào → "Tên NV: THIỆU
+NHÂN_NV_VHWS", "Khách đang tiếp nhận (1/4)", "#13 Trịnh Bảo Châu" — đúng
+hoàn toàn dù `TV_MãNV` gốc là chuỗi rác. `tsc -b --noEmit` sạch. **Chưa có
+xác nhận lại từ user trên bản live.**
+
+### Fallback qua NV vẫn không chạy: `DS Master` proxy trả 0 dòng — thiếu secret `TB_DS_MASTER` (2026-08-06, tiếp)
+Sau fix ở trên, user báo "vẫn chưa được". Điều tra theo đúng nếp xin dữ liệu
+thật từng bước (không đoán tiếp dù đã sai hướng 1 lần giữa chừng — có lúc
+nghi TV_MãNV là field Lookup nên leak khác cơ chế cũ, hoá ra vẫn đúng cơ chế
+"opt..." như trước, chỉ là field TYPE hiển thị là Lookup thay vì SingleSelect
+động như đoán từ file cũ): xin JSON `<proxy>/dsMaster` → **`"total":0`** —
+bảng NV↔bàn hoàn toàn rỗng qua proxy, dù user chụp màn hình Lark cho thấy
+bảng đó có ĐỦ 24 dòng thật. User tự dò thêm 1 lần nữa bằng tool riêng của họ
+→ Table ID `tblveMSMNqM61DaW` khớp 100% với "DS Master" — loại khả năng sai
+ID. Đọc thẳng `cloudflare-worker.js` mới thấy: `if (!tableId) return
+{code:0, items:[], total:0}` — THIẾU secret Cloudflare (`TB_DS_MASTER` chưa
+được `wrangler secret put`) bị code cũ ÂM THẦM trả về y hệt "bảng rỗng",
+không hề báo lỗi — đây mới là nguyên nhân thật, không phải sai Table ID hay
+sai field.
+
+**Fix 2 phần**: (1) hướng dẫn user tự thêm secret `TB_DS_MASTER` = giá trị
+Table ID đã xác nhận, qua Cloudflare dashboard (không phải việc code sửa
+được). (2) Tiện thể sửa `cloudflare-worker.js`: khi thiếu secret, trả lỗi rõ
+ràng (`code: -1`, msg nêu đúng tên secret thiếu) thay vì giả vờ thành công —
+tránh lặp lại kiểu debug vòng vo này cho 5 bảng còn lại nếu sau này thiếu
+secret nào khác. **Cần user tự `npx wrangler deploy` lại thì fix Worker mới
+lên — sửa code cục bộ ở đây không tự động deploy.**
+
+### Backup giao cho cả NV Tư vấn lẫn Thu cũ — bỏ quyết định "BK<n> = vị trí KT" (2026-08-06, tiếp, SAI lầm tự sửa cùng ngày)
+User: từ giờ Backup không còn là việc riêng của Kỹ thuật — cả NV Tư vấn lẫn
+Thu cũ đều làm được; KT vẫn có nhiệm vụ CHÍNH là Thu cũ. Yêu cầu rõ: dòng
+Điều phối chọn "Thu cũ" vẫn vào KT (không đổi); còn khi 1 chỗ tiếp nhận
+Backup thì phải suy đúng bàn theo VỊ TRÍ GẮN THEO NGƯỜI (NV đó đang chính
+ngồi bàn nào), không có 1 vị trí Backup cố định riêng.
+
+**Phát hiện quyết định SAI trong chính phiên này**: mục "NV Backup dùng
+chung vị trí KT với Thu cũ" (fix `normalizeDeskCode`'s "BK<n>"→"TC<n>") vừa
+làm ngay TRƯỚC ĐÓ cùng ngày dựa trên suy đoán riêng ("Backup chỉ có ở Kỹ
+thuật") — giờ user xác nhận sai, đảo ngược lại. Bài học lặp lại (đã ghi nhiều
+lần trong file này): đoán ngữ nghĩa nghiệp vụ khi chưa chắc luôn rủi ro tốn
+công sửa lại — hỏi `AskUserQuestion` trước khi có cơ hội đã tránh được vòng
+lặp sửa-sai-sửa-lại lần này (đã hỏi rõ trước khi code, chỉ mất 1 lần sửa).
+
+**Fix**: `normalizeDeskCode` — coi MỌI mã "BK<n>" là KHÔNG hợp lệ (như mã
+option thô), luôn trả `null`, không còn quy đổi `TC${n}`. `larkConfig.ts`:
+thêm `DsMasterFieldMap.loai` (default `'Loại'`) + hằng `PRIMARY_DESK_LOAI =
+Set(['Tư vấn', 'Thu cũ'])`. `indexDeskCodeByStaffName` (fallback qua NV) giờ
+CHỈ lấy dòng `DS Master` có `Loại` ∈ `PRIMARY_DESK_LOAI` — bỏ qua dòng
+"Backup"/"Kho" — vì 1 NV có thể có tới 3 dòng roster (Tư vấn HOẶC Thu cũ +
+riêng 1 dòng Backup), chỉ dòng bàn CHÍNH mới phản ánh đúng vị trí vật lý. 1
+NV có ≥ 2 dòng bàn chính (hiếm) thì lấy dòng đầu gặp — chấp nhận được vì chỉ
+là dự phòng.
+
+**Verify bằng mock**: `ma_4` (Dương Xuân Long, nhận qua Backup — `TV_MãNV:
+'BK3'`) đổi `Người` sang "SơnTrà_AppleMaster_AM&WS" (NV này vốn CÓ SẴN bàn
+chính TC2 qua `ma_3`/Huỳnh Ngọc Linh). Thêm `dsm_5` (NV đó, TC2, Loại "Thu
+cũ" — bàn chính) VÀ `dsm_6` (NV đó, BK2, Loại "Backup" — phải BỊ BỎ QUA) để
+xác nhận đúng cơ chế lọc, không phải trùng hợp do chỉ có 1 dòng. Kết quả:
+KT3 chuyển XANH (trống hẳn, không còn ai map vào theo kiểu cũ); KT2 hiện
+"Khách đang tiếp nhận (2/2)": #2 Huỳnh Ngọc Linh + #4 Dương Xuân Long, đúng
+NV "SơnTrà_AppleMaster_AM&WS" — xác nhận Backup quy đúng về bàn CHÍNH, không
+lấy nhầm dòng "BK2". Các ca fallback cũ (`ma_11`→TV8, `ma_12`→TV5) vẫn đúng
+sau khi thêm field `Loại` bắt buộc (đã thêm `Loại: 'Tư vấn'` vào `dsm_3`/
+`dsm_4` tương ứng — không có sẽ bị lọc bỏ, phải nhớ update). `tsc -b
+--noEmit` sạch. **Chưa có xác nhận lại từ user trên bản live** (đợi họ tự
+kiểm tra sau khi sửa `TB_DS_MASTER` secret + deploy lại Worker).
+
+### Điều tra live TV_MãNV: Worker thật khác hẳn repo, thiếu key `dsMaster` trong TABLE_ENV, rồi thiếu secret (2026-08-06, tiếp — nhiều vòng)
+User gửi tiếp raw JSON `/master` cho 1 dòng mới → `TV_MãNV` VẪN là mã option
+thô dù trước đó nghi field là Lookup (khác cơ chế) — hoá ra vẫn đúng cơ chế
+cũ, chỉ là field TYPE hiển thị "Lookup" trong Lark UI. User sau đó gửi
+NGUYÊN CODE Worker thật đang chạy (paste trực tiếp, dạng đã bundle qua
+esbuild) — lộ ra: **file `cloudflare-worker.js` trong repo này KHÔNG PHẢI
+bản đang deploy thật** — bản thật sống trực tiếp trong Cloudflare dashboard
+(không có file nguồn nào trong repo), và đã có sẵn cơ chế tự resolve mã
+option qua `GET .../fields` (`getFieldOptionMaps`/`resolveOptionRefs`) —
+tiến bộ hơn nhưng KHÔNG bao phủ được `TV_MãNV` (Lookup động, không có option
+tĩnh trong `/fields`). Bug cụ thể: `TABLE_ENV` bản thật thiếu hẳn key
+`dsMaster` → `/dsMaster` luôn trả `{code:0,total:0}` bất kể secret đúng hay
+sai. User tự sửa thêm key này trực tiếp trong dashboard.
+
+**Fix**: đồng bộ lại `cloudflare-worker.js` trong repo theo ĐÚNG bản thật
+(giữ nguyên cơ chế resolve option, thêm `/health` endpoint), CỘNG THÊM cải
+tiến báo lỗi rõ khi thiếu secret/table key (thay vì im lặng trả rỗng — chính
+cơ chế im lặng này khiến việc chẩn đoán mất nhiều vòng). **File trong repo
+chỉ mang tính tham chiếu/tiện port lại — không tự động ảnh hưởng bản live,
+user phải tự copy dán vào Cloudflare dashboard + Deploy.**
+
+Vòng debug tiếp: dù đã thêm key `dsMaster`, `/dsMaster` vẫn `total:0` —
+kiểm tra Variables/secrets thấy `TB_DS_MASTER` ĐÃ set đúng giá trị
+(`tblveMSMNqM61DaW`) → nghi code chưa thực sự Deploy (chỉ Save). Cuối cùng
+`/dsMaster` ra đúng 24 dòng, cấu trúc khớp 100% với `DsMasterFieldMap`
+('STT bàn'/'NV Tư vấn'/'Loại') — xác nhận toàn bộ pipeline (Worker + code
+web) đã sẵn sàng, đợi user tự làm mới app kiểm tra lại TV5.
+
+**Bài học ghi lại**: đừng mặc định file trong repo local là nguồn thật đang
+chạy — với hạ tầng có thể chỉnh trực tiếp qua dashboard (Cloudflare Workers,
+v.v.), LUÔN xin xác nhận/paste code thật khi nghi ngờ hành vi không khớp với
+code đang xem, thay vì chỉ sửa file local rồi coi như xong.
+
+### 2 chỗ khác cũng cần loại "End flow" khỏi đếm "đang chờ": badge trên sơ đồ + "STT tiếp theo" ở QueueBoard (2026-08-06, tiếp)
+User: khách đã "End flow" (xong toàn bộ) rồi mà TV5 vẫn hiện badge "khách
+đang chờ" = 1 (trên sơ đồ chính) — chỉ ra tương tự cũng cần sửa "STT tiếp
+theo" ở màn hình QueueBoard (/tuvanview, /kythuatview).
+
+**Nguyên nhân**: 2 chỗ tính "còn ai đang chờ ở bàn X" (badge `waiting` trong
+`larkMapper.ts`'s `mapDeskStates`, và `next` trong `queueMapper.ts`'s
+`mapQueueStates`) đều chỉ loại người đã ĐANG ĐƯỢC PHỤC VỤ (`servedNames`)
+khỏi danh sách điều phối — KHÔNG loại người đã "End flow" (xong hẳn nhưng
+dòng `Master Điều phối` gán họ vào bàn chưa/không bị xoá).
+
+**Fix**: `larkMapper.ts`'s per-position loop — thêm điều kiện bỏ qua nếu
+`checkinByName.get(n)?.endFlow`. `queueMapper.ts` — thêm hàm `indexEndFlowNames()`
+(viết riêng, không import từ larkMapper.ts's private `isEndFlowValue`, giữ
+đúng quy ước tách biệt 2 mapper đã ghi trong module doc), lọc `next` loại cả
+tên có trong set đó.
+
+**Verify bằng mock**: thêm `dp_4` — Huỳnh Ngọc Linh (STT2, đã "End flow" từ
+`ci_2`) điều phối vào TV7 (bàn trống, không liên quan gì khác). Trước fix:
+TV7 hiện badge "1" + QueueBoard "STT tiếp theo" = STT của cô ấy. Sau fix:
+TV7 không còn badge nào trên sơ đồ chính, và `/tuvanview`'s thẻ TV7 hiện
+"STT tiếp theo: —" — trong khi TV4/TV6 (dispatch hợp lệ, chưa End flow) vẫn
+đúng "7"/"8" như cũ, xác nhận không phá vỡ ca đúng. `tsc -b --noEmit` sạch.
+
+### "Nhân sự" chỉ đúng nghĩa khi CHƯA tiếp nhận — bỏ khỏi CustomerPopover (2026-08-06, tiếp)
+User làm rõ ý nghĩa dòng "Nhân sự" (thêm vài lượt trước): chưa tiếp nhận thì
+lấy từ Điều phối (đúng như đang làm), NHƯNG đã tiếp nhận rồi thì phải hiện
+"nhân sự tiếp nhận" — tức NV đang thực sự phục vụ, không phải mã bàn Điều
+phối thô nữa.
+
+Nhận ra: `CustomerPopover` (khách ĐÃ tiếp nhận — chấm STT dưới 1 bàn) đã có
+sẵn dòng **"Nhân viên"** (`desk.staffName`, từ `Master.Người`) — chính là
+"nhân sự tiếp nhận" user muốn. Thêm 1 dòng "Nhân sự" (mã Điều phối thô) ở
+đây là THỪA/gây hiểu nhầm (2 dòng khác tên, cùng ý). `WaitingPopover` (khách
+CHƯA tiếp nhận) thì không hề có dòng "Nhân viên" nào — dòng "Nhân sự" (mã
+Điều phối) là NGUỒN DUY NHẤT biết ai/bàn nào có thể sẽ nhận, nên giữ nguyên.
+
+**Fix**: bỏ hẳn `Row label="Nhân sự"` + hàm `dispatchSummary()` khỏi
+`CustomerPopover.tsx` (không đụng field `dsTuVan`/`dsThuCu`/`dsBackup` trong
+`larkMapper.ts`/`types/desk.ts` — vẫn cần cho `WaitingPopover`). Giữ nguyên
+`WaitingPopover.tsx`. Cập nhật doc comment ở cả 2 file giải thích rõ vì sao
+khác nhau (dễ hiểu nhầm là thiếu sót nếu không ghi lại).
+
+**Verify bằng mock**: bấm chấm STT13 (Trịnh Bảo Châu, TV5, đã tiếp nhận) →
+popover kết thúc đúng ở "Backup check", không còn dòng "Nhân sự" nào, "Nhân
+viên" đã hiện "THIỆU NHÂN_NV_VHWS". Bấm STT8 (Võ Thu Trang, khu Đã check-in,
+chưa tiếp nhận) → vẫn đúng "Nhân sự: (TV6)()()" như trước, không đổi. `tsc
+-b --noEmit` sạch.
+
+### "Nhân sự" quay lại CustomerPopover + thêm vào End Flow (2026-08-06, tiếp, đảo lại lượt trước)
+User: muốn thấy "Nhân sự" ở CẢ popover khách đã tiếp nhận (vừa gỡ lượt
+trước) LẪN ở bảng "End Flow". Tức lượt trước hiểu sai — không phải "gỡ hẳn
+khỏi CustomerPopover", mà là "đổi NGUỒN giá trị tuỳ trạng thái tiếp nhận",
+giữ nguyên có mặt ở mọi nơi hiển thị khách.
+
+**Fix**: `CustomerPopover.tsx` — thêm lại `Row label="Nhân sự"`, nhưng giá
+trị = `staffName` (NV đã tiếp nhận, giống hệt "Nhân viên" — 2 dòng cùng giá
+trị, chấp nhận được vì user muốn rõ ràng cả 2 nhãn cùng xuất hiện, không tự
+ý gộp/xoá nữa). `EndFlowTable.tsx` — thêm cột "Nhân sự" mới (cuối bảng),
+dùng `dispatchSummary()` giống `WaitingPopover` (mã Điều phối thô 3 cột) vì
+khách đã "End flow" không gắn cố định 1 NV nào trong dữ liệu hiện có (đã qua
+nhiều bàn/khâu) — field `dsTuVan`/`dsThuCu`/`dsBackup` trên `endFlow` array
+đã có sẵn từ lượt thêm "Nhân sự" ban đầu, chỉ cần thêm cột hiển thị.
+
+**Verify bằng mock**: bấm STT13 (Trịnh Bảo Châu, TV5) → cả "Nhân viên" lẫn
+"Nhân sự" đều hiện "THIỆU NHÂN_NV_VHWS". Mở "End Flow" → Huỳnh Ngọc Linh
+hiện đúng cột "Nhân sự" = "(TV7)()()" (khớp `dp_4`, dòng dispatch demo thêm
+ở fix "End flow không nên tính là chờ" trước đó). `tsc -b --noEmit` sạch.
+
+### "Nhân sự" ở CustomerPopover: chốt lại dạng ngoặc, không phải tên NV (2026-08-06, chốt sau 3 lượt qua lại)
+User gửi ảnh chụp "Nhân sự  ()()()" hỏi có đúng định dạng này không — hỏi lại
+rõ (không đoán, sau khi đã đoán sai 1 lần liền trước): xác nhận đây LÀ
+CustomerPopover, và muốn đổi VỀ dạng ngoặc `(DS Tư vấn)(DS Thu cũ)(DS
+Backup)`, KHÔNG phải tên NV như lượt sửa ngay trước. Tổng kết đúng cuối cùng
+(sau 3 lượt: gỡ hẳn → thêm lại bằng tên NV → đổi lại bằng dạng ngoặc): dòng
+"Nhân sự" LUÔN hiện dạng ngoặc, GIỐNG HỆT `WaitingPopover`/`EndFlowTable`,
+bất kể khách đã tiếp nhận hay chưa — không còn khác biệt theo trạng thái
+nữa. Tên NV đã tiếp nhận vẫn xem ở dòng "Nhân viên" riêng (không đổi).
+
+**Fix**: `CustomerPopover.tsx` — thêm lại hàm `dispatchSummary()` (giống hệt
+2 file kia), đổi `Row label="Nhân sự"` từ `value={staffName}` sang
+`value={dispatchSummary(customer)}`.
+
+**Verify bằng mock**: bấm STT13 (Trịnh Bảo Châu, TV5 — không có dòng
+`dispatch` nào) → đúng "Nhân sự: ()()()" khớp y hệt ảnh user gửi, trong khi
+"Nhân viên" vẫn đúng "THIỆU NHÂN_NV_VHWS". `tsc -b --noEmit` sạch.
+
+### "BK<n>" có quy ước CỐ ĐỊNH: BK1-8=TV1-8, BK11-13=TC1-3 (2026-08-06, tiếp — cụ thể hoá "Backup quy về bàn chính")
+Điều tra tiếp ca thật "BK5 đã tiếp nhận nhưng chưa update": xin JSON `/master`
+→ thấy dòng Backup có `"Người":"THIỆU NHÂN_NV_VHWS"` (không phải NV roster
+BK5 cũ từng thấy) — nghi DS Master đã bị đổi/roster không tĩnh. Giải thích
+cho user hướng suy luận (quy theo "Người" của ĐÚNG dòng, không theo nhãn
+"BK5"), rồi user chủ động cho biết QUY ƯỚC THẬT: họ tự đặt "BK<n>" map CỐ
+ĐỊNH vào 1 bàn thật — TV1..TV8 = BK1..BK8 (khớp số), TC1..TC3 = BK11..BK13
+(lệch 10) — không phụ thuộc NV nào cả, luôn map value THEO SỐ.
+
+**Fix**: `larkMapper.ts` — thêm `BK_TO_DESK` (map tĩnh 11 mục, đúng quy ước
+trên). `normalizeDeskCode` giờ ưu tiên tra `BK_TO_DESK` trước (nếu mã trông
+như "BK<n>" nhưng KHÔNG có trong map — vd "BK9"/"BK10" ngoài phạm vi — vẫn
+coi như không hợp lệ, trả `null`, rơi về fallback qua NV như cũ). Lưu ý quan
+trọng ghi trong code: trên thực tế API hầu như luôn trả mã option CHƯA
+resolve (không phải chữ "BK5" thật) cho `TV_MãNV`, nên `BK_TO_DESK` chủ yếu
+là lớp phòng thủ khi nào có chữ thật — đường chính vẫn là fallback qua NV.
+
+**Verify bằng mock**: `ma_4` (Dương Xuân Long, `TV_MãNV: 'BK3'` — chữ thật,
+không phải mã option) → giờ quy đúng **TV3** (map trực tiếp theo số), KHÔNG
+còn qua NV "SơnTrà_AppleMaster_AM&WS" (trước đó ra TC2) nữa — xác nhận map
+tĩnh có độ ưu tiên cao hơn. Thêm `ma_13` (Lý Gia Bảo, mã option THÔ, cùng NV
+"SơnTrà...") để giữ lại phép thử "fallback qua NV + lọc Loại" (dòng cũ `ma_4`
+không còn test case này nữa do đổi sang map tĩnh) — đúng quy về TC2 (dòng
+Thu cũ trong `dsMaster`), TUYỆT ĐỐI không lấy nhầm dòng Backup (BK2). Bấm
+TV3 → đúng "Dương Xuân Long"; bấm KT2 → đúng "(2/2)": Huỳnh Ngọc Linh + Lý
+Gia Bảo, cùng NV "SơnTrà_AppleMaster_AM&WS". `tsc -b --noEmit` sạch. **Chưa
+có xác nhận lại từ user trên bản live.**
+## 2026-08-06 — Giữ đủ 3 mã nhân sự TV/TC/BK qua nhiều dòng Điều phối
+
+- User yêu cầu dòng `Nhân sự` luôn theo dõi riêng đủ 3 khâu `(TV)(TC)(BK)`; cùng một người đảm nhận Backup vẫn phải hiện mã BK riêng, không gộp thành mã bàn chính.
+- Quy ước chốt: TV1..TV8 làm Backup tương ứng BK1..BK8; TC1..TC3 làm Backup tương ứng BK11..BK13.
+- Root cause ảnh `(TV5)()()`: `indexDispatchDetailByName` trước đây lấy dòng `Master Điều phối` cuối theo tên và ghi đè cả object, nên các cột TC/BK ở những dòng điều phối trước bị mất.
+- Sửa `src/services/larkMapper.ts`: cộng dồn giá trị mới nhất theo từng cột qua tất cả dòng cùng tên; chuẩn hoá riêng giá trị hiển thị DS Backup từ TV/TC sang BK nhưng vẫn giữ BK nguyên bản. Mapping BK→bàn chính chỉ phục vụ trạng thái/occupancy, không thay mã BK trên popover.
+- Thêm mock nhiều dòng cho cùng khách để tái hiện `(TV1)(TC2)(BK1)`.
+- Verify: `npx tsc -b --noEmit` và `npm run build` đều pass.
+## 2026-08-06 — Nhân sự kết hợp Master Điều phối + SS_Master
+
+- User chốt nguồn hiển thị: khâu chưa tiếp nhận lấy người/mã dự kiến từ `Master Điều phối`; khi đã có `Tiếp nhận` hoặc `Hoàn tất` thì khâu đó phải lấy nhân viên thực tế từ `SS_Master`.
+- Thêm mapping SS_Master `stage = "Loại 2"` để phân biệt Tư vấn / Thu cũ / Backup.
+- `mergeReceivedDetailByName` bắt đầu bằng 3 mã Điều phối, sau đó quét SS_Master theo thời gian và chỉ ghi đè đúng khâu đã được tiếp nhận. Các khâu chưa nhận vẫn giữ dữ liệu Điều phối.
+- Nếu `TV_MãNV` là option ID thô, dùng `Người` đối chiếu DS Master để tìm bàn chính; khâu Backup đổi TV1..TV8→BK1..BK8 và TC1..TC3→BK11..BK13.
+- Verify: TypeScript và production build đều pass.

@@ -10,7 +10,7 @@
 
 Bảng điều khiển **sơ đồ tương tác thời gian thực** cho **điều phối viên** tại sự
 kiện ra mắt iPhone (cellphoneS). Mô phỏng mặt bằng sự kiện thành lưới toạ độ, đồng
-bộ trạng thái từng bàn từ **Lark Base (Bitable)** qua HTTPS, tự làm mới mỗi 30s.
+bộ trạng thái từng bàn từ **Lark Base (Bitable)** qua HTTPS, mặc định tự làm mới mỗi 5s.
 Giúp điều phối gán khách vào bàn và phát hiện **nghẽn cổ chai** ở 2 khu vực:
 **Kỹ thuật (KT) · Tư vấn**. (Bản trước có thêm "Thu cũ" và "Backup" — nay "KT"
 thay cho "Thu cũ" và "Backup" đã bỏ khỏi sơ đồ; xem §11.)
@@ -195,7 +195,7 @@ type DeskData = TablePosition & Partial<DeskLiveState>;
   - **Proxy/Webhook** (khuyến nghị): `GET ${apiUrl}/<tableKey>` với tableKey ∈
     `dsTradein · dsConsult · checkin · orders · master`. Proxy giữ secret, tránh CORS.
   - **Direct API**: `GET {host}/open-apis/bitable/v1/apps/{appToken}/tables/{tableId}/records?page_size=500`.
-- **Polling 30s** (`pollMs`). Hook `useDashboardData` tự đồng bộ lại khi đổi settings.
+- **Polling 5s mặc định** (`pollMs`). Hook `useDashboardData` tự đồng bộ lại khi đổi settings.
 
 > Chi tiết lấy token/table id + code proxy mẫu: `docs/LARK_SETUP.md`.
 
@@ -255,7 +255,7 @@ src/
 
 ```
 Lark Base (5 bảng, đều bắt buộc)
-   │  fetchLarkData (proxy/direct, 30s)   ── hoặc ──   mockLarkTables
+   │  fetchLarkData (proxy/direct, 5s)    ── hoặc ──   mockLarkTables
    ▼
 mapDeskStates(tables, fieldConfig)  →  { statesById, totalCheckIn, totalRegistered }
    ▼

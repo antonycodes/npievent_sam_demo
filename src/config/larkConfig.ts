@@ -68,6 +68,8 @@ export interface MasterFieldMap {
   name: string;
   /** NV đang tiếp nhận khách này (person field) — hiện lên popover "Tên NV". */
   staff: string;
+  /** Phân loại khâu của bản ghi SS_Master: "Tư vấn" / "Thu cũ" / "Backup". */
+  stage: string;
   /** Dùng để sắp khách theo thứ tự khi 1 NV/bàn phục vụ nhiều khách cùng lúc. */
   time: string;
 }
@@ -77,21 +79,37 @@ export interface MasterFieldMap {
  * (cột `DS Thu cũ`/`DS Tư vấn` chứa mã bàn) nhưng CHƯA có dòng "Tiếp nhận"
  * tương ứng trong `Master` — tức đang chờ NV bàn đó xử lý. `deskField` tách
  * theo cụm vì đây là 2 cột khác nhau trong bảng (không union như `Master`).
+ * `backupDeskField` (2026-08-06, tiếp) là cột "DS Backup" — mã bàn Backup
+ * dispatch, CHỈ để hiển thị nguyên văn trong popover khách (dòng "Nhân sự",
+ * xem `CustomerPopover.tsx`/`WaitingPopover.tsx`), KHÔNG gộp vào đếm "khách
+ * đang chờ" mỗi bàn (`indexDispatchByDeskCode` vẫn chỉ đọc 2 cột cũ).
  */
 export interface DispatchFieldMap {
   deskField: Record<'kythuat' | 'consult', string>;
+  backupDeskField: string;
   name: string;
 }
 
 /**
- * `DS Master` — QUAY LẠI (2026-08-05, tiếp) nhưng CHỈ đọc đúng 1 field: "STT
- * tiếp theo" mỗi bàn, theo yêu cầu rõ của user — bảng này KHÔNG dùng cho bất
- * cứ việc gì khác (occupancy/staff/status vẫn đọc từ `Master` như trước, xem
- * module doc). `code` là khoá join theo mã bàn, giống `MasterFieldMap.deskCode`.
+ * `DS Master` — QUAY LẠI (2026-08-05, tiếp) nhưng CHỈ đọc đúng 3 field: "STT
+ * tiếp theo" mỗi bàn, "NV Tư vấn" + "Loại" (2026-08-06, tiếp — dùng để suy mã
+ * bàn CHÍNH khi `Master`'s `TV_MãNV` bị bỏ trống/không hợp lệ, xem
+ * larkMapper.ts's `indexDeskCodeByStaffName`). Bảng này KHÔNG dùng cho bất cứ
+ * việc gì khác (occupancy/staff/status chính vẫn đọc từ `Master` như trước,
+ * xem module doc). `code` là khoá join theo mã bàn, giống `MasterFieldMap.deskCode`.
  */
 export interface DsMasterFieldMap {
   code: string;
   nextStt: string;
+  /** NV phụ trách bàn (person field) — khớp theo TÊN với `MasterFieldMap.staff` ("Người"). */
+  staff: string;
+  /**
+   * Phân loại bàn của dòng roster này — "Tư vấn"/"Thu cũ" là bàn CHÍNH (vật
+   * lý, có trên sơ đồ); "Backup"/"Kho" KHÔNG phải bàn chính, bỏ qua khi suy
+   * mã bàn dự phòng (1 NV có thể có ≥ 2 dòng — Tư vấn/Thu cũ HOẶC Backup —
+   * chỉ dòng Tư vấn/Thu cũ mới phản ánh đúng vị trí vật lý họ đang ngồi).
+   */
+  loai: string;
 }
 
 /** All field maps bundled — what the mapper needs. */
@@ -123,21 +141,28 @@ export const DEFAULT_MASTER_FIELDS: MasterFieldMap = {
   status: 'Trạng thái',
   name: 'Họ và tên',
   staff: 'Người',
+  stage: 'Loại 2',
   time: 'Thời gian',
 };
 
 export const DEFAULT_DISPATCH_FIELDS: DispatchFieldMap = {
   deskField: { kythuat: 'DS thu cũ', consult: 'DS Tư vấn' },
+  backupDeskField: 'DS Backup',
   name: 'Họ và tên',
 };
 
 export const DEFAULT_DS_MASTER_FIELDS: DsMasterFieldMap = {
   code: 'STT bàn',
   nextStt: 'STT tiếp theo',
+  staff: 'NV Tư vấn',
+  loai: 'Loại',
 };
 
 /** Giá trị `Master.Trạng thái` nghĩa là "đang được tiếp nhận". */
 export const STATUS_RECEIVED = 'Tiếp nhận';
+
+/** `DS Master.Loại` — 2 giá trị coi là "bàn chính" (vật lý, có trên sơ đồ), dùng ở `indexDeskCodeByStaffName`. */
+export const PRIMARY_DESK_LOAI = new Set(['Tư vấn', 'Thu cũ']);
 
 /** Giá trị `Master.Trạng thái` nghĩa là NV vừa xong 1 khách — nguồn "Chờ điều phối". */
 export const STATUS_COMPLETED = 'Hoàn tất';
@@ -162,7 +187,7 @@ export const ENV_DEFAULTS = {
   host: DEFAULT_HOST,
   appToken: (env.VITE_LARK_APP_TOKEN as string | undefined) || '',
   accessToken: (env.VITE_LARK_ACCESS_TOKEN as string | undefined) || '',
-  pollMs: Number(env.VITE_LARK_POLL_MS) > 0 ? Number(env.VITE_LARK_POLL_MS) : 30000,
+  pollMs: Number(env.VITE_LARK_POLL_MS) > 0 ? Number(env.VITE_LARK_POLL_MS) : 5000,
   useMock:
     env.VITE_LARK_USE_MOCK === 'true' || (!env.VITE_LARK_API_URL && !env.VITE_LARK_APP_TOKEN),
   tableIds: {

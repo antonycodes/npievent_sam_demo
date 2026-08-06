@@ -11,6 +11,7 @@ import Sidebar from '@/components/Sidebar';
 import StatusLegend from '@/components/StatusLegend';
 import WaitingPopover from '@/components/WaitingPopover';
 import { useDashboardData } from '@/hooks/useDashboardData';
+import { useLarkSettings } from '@/config/larkSettings';
 import { deskUiStatus } from '@/types/desk';
 
 const NO_FILTERS: DeskFilters = { onlyVacant: false, onlyKythuat: false, onlyDeviceAccepted: false };
@@ -21,6 +22,7 @@ const WAITING_ZONE_LABEL: Record<WaitingZoneKey, string> = {
 };
 
 export default function DashboardPage() {
+  const { pollSeconds } = useLarkSettings();
   const { desks, summary, waitingCheckin, waitingDispatch, endFlow, loading, error, lastUpdated, isMock, refresh } =
     useDashboardData();
 
@@ -115,7 +117,7 @@ export default function DashboardPage() {
                 isMock ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700',
               ].join(' ')}
             >
-              {isMock ? 'Mock data' : 'Lark Base (live · 30s)'}
+              {isMock ? 'Mock data' : `Lark Base (live · ${pollSeconds}s)`}
             </span>
             {error ? (
               <span className="rounded-full bg-red-100 px-2 py-1 font-semibold text-red-700">
