@@ -30,6 +30,8 @@ export interface TablePosition {
   x: number;
   /** Node center Y as a percentage (0–100) of the board height. */
   y: number;
+  /** Sức chứa riêng của node; mặc định lấy theo cluster. */
+  capacity?: number;
 }
 
 /** Visual state of a desk node — chỉ 2 màu: xanh (rảnh) / đỏ (có khách). */

@@ -208,6 +208,8 @@ const BK_TO_DESK: Record<string, string> = {
   BK6: 'TV6',
   BK7: 'TV7',
   BK8: 'TV8',
+  BK9: 'TV9',
+  BK10: 'TV10',
   BK11: 'TC1',
   BK12: 'TC2',
   BK13: 'TC3',
@@ -232,6 +234,7 @@ const KT_TO_DESK: Record<string, string> = {
 export function normalizeDeskCode(raw: string | null): string | null {
   if (!raw || isUnresolvedOptionId(raw)) return null;
   const normalized = raw.toUpperCase();
+  if (normalized === 'BK.X') return 'BK.X';
   if (KT_TO_DESK[normalized]) return KT_TO_DESK[normalized];
   const m = /^BK\d+$/i.exec(raw);
   if (m) return BK_TO_DESK[raw.toUpperCase()] ?? null;
@@ -241,6 +244,7 @@ export function normalizeDeskCode(raw: string | null): string | null {
 /** Suy cụm từ tiền tố mã bàn — "TC..." → Kỹ thuật, "TV..." → Tư vấn (xem layoutConfig.ts's `ID_PREFIX`). */
 function clusterFromDeskCode(code: string | null): ClusterKey | null {
   if (!code) return null;
+  if (code === 'BK.X') return 'kythuat';
   if (code.startsWith('TC')) return 'kythuat';
   if (code.startsWith('TV')) return 'consult';
   return null;
@@ -394,7 +398,7 @@ function backupDisplayCode(raw: string | null): string | null {
   if (!raw || isUnresolvedOptionId(raw)) return null;
   const code = raw.toUpperCase();
   if (/^BK\d+$/.test(code)) return code;
-  const tv = /^TV([1-8])$/.exec(code);
+  const tv = /^TV([1-9]|10)$/.exec(code);
   if (tv) return `BK${tv[1]}`;
   const tc = /^TC([1-3])$/.exec(code);
   if (tc) return `BK${Number(tc[1]) + 10}`;

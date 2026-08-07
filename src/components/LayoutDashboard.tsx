@@ -275,7 +275,7 @@ export default function LayoutDashboard({
           if (list.length === 0) return null;
 
           const dim = dimmedIds?.has(d.id) ? 'pointer-events-none opacity-15' : '';
-          const cap = DESK_CAPACITY[d.cluster];
+            const cap = d.capacity ?? DESK_CAPACITY[d.cluster];
           const slots = list.slice(0, cap);
           const overflow = list.length - slots.length;
 

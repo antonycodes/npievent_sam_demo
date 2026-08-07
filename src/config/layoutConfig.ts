@@ -4,9 +4,9 @@
  * Coordinates are percentages of a 16:9 board, redrawn from the new floor-plan
  * reference image (2026-07-30), extended on 2026-08-03 to add TV7/TV8:
  *   - Khu vực kỹ thuật (KT) : 3 staff in a row, top-center-left  → 3
- *   - Khu vực tư vấn (TV)   : 4 vertical pairs, across the bottom → 8
- * "Bàn thu cũ" is replaced by "Kỹ thuật" and "Backup" no longer exists in
- * this floor plan. Total = 11.
+ *   - Khu vực tư vấn (TV)   : 5 vertical pairs, across the bottom → 10
+ *   - Khu vực Kỹ thuật có thêm node BK.X → 4
+ * Tổng cộng = 14 node.
  */
 import type { ClusterKey, TablePosition } from '@/types/desk';
 
@@ -93,20 +93,22 @@ function buildGrid(cluster: ClusterKey, xs: number[], ys: number[]): TablePositi
 // dưới nữa (khu Tư vấn giờ có 4 cột, xem CONSULT_X). Đo trực tiếp trên trang
 // chạy thật (getBoundingClientRect) để chọn pitch — không đoán qua mắt: 20%
 // ngang đủ rộng cho cả node lẫn hàng chấm STT dưới nó.
-const GROUP_X = [12, 32, 52];
-export const KYTHUAT_POSITIONS = buildGrid('kythuat', GROUP_X, [15]);
+// Gom 3 KT thành một cụm bên trái, chừa vùng rộng bên phải cho node BK.X.
+const GROUP_X = [10, 22, 34];
+export const KYTHUAT_POSITIONS: TablePosition[] = [
+  ...buildGrid('kythuat', GROUP_X, [15]),
+  { id: 'BK.X', cluster: 'kythuat', label: 'BK.X', x: 49, y: 15, capacity: 5 },
+];
 
-// ── Khu vực tư vấn (TV) — 4 cặp bàn xếp dọc (tv1/2, tv3/4, tv5/6, tv7/8) ───
-// Thêm TV7/TV8 (2026-08-03) → cần 1 cột thứ 4. Khung "Khu vực tư vấn" dừng ở
-// 61% (left-4% + w-57%) và khu chờ STT bên phải bắt đầu ở 64%, nên 4 cột phải
-// nén lại (8/24/40/56, pitch 16% — vẫn rộng hơn nhiều so với MIN_COL_PITCH
-// 6%) thay vì giữ pitch 20% cũ (sẽ đẩy cột cuối chồng lên khu chờ STT).
+// ── Khu vực tư vấn (TV) — 5 cặp bàn xếp dọc (TV1/2 … TV9/10) ───────────────
+// Năm cột được dàn đều trong khung trái, cột cuối vẫn chừa khoảng cách với
+// khu chờ STT bên phải bắt đầu ở 64%.
 // Numbering runs top→bottom WITHIN a group, then group-by-group left→right
 // (matches the reference image) — not a plain row-major grid, so the
 // positions are listed explicitly instead of through buildGrid. Row pitch 26%
 // (đo thật: node cao ~4.7%, hàng chấm STT kéo dài thêm ~5.3% dưới tâm node) —
 // đủ thoáng so với bản cũ (16%) nhưng không tạo khoảng trắng lớn giữa 2 hàng.
-const CONSULT_X = [8, 24, 40, 56];
+const CONSULT_X = [6, 18.5, 31, 43.5, 56];
 export const CONSULT_POSITIONS: TablePosition[] = [
   { id: 'TV1', cluster: 'consult', label: 'TV1', x: CONSULT_X[0], y: 46 },
   { id: 'TV2', cluster: 'consult', label: 'TV2', x: CONSULT_X[0], y: 72 },
@@ -116,10 +118,12 @@ export const CONSULT_POSITIONS: TablePosition[] = [
   { id: 'TV6', cluster: 'consult', label: 'TV6', x: CONSULT_X[2], y: 72 },
   { id: 'TV7', cluster: 'consult', label: 'TV7', x: CONSULT_X[3], y: 46 },
   { id: 'TV8', cluster: 'consult', label: 'TV8', x: CONSULT_X[3], y: 72 },
+  { id: 'TV9', cluster: 'consult', label: 'TV9', x: CONSULT_X[4], y: 46 },
+  { id: 'TV10', cluster: 'consult', label: 'TV10', x: CONSULT_X[4], y: 72 },
 ];
 assertGridSpacing('consult', CONSULT_POSITIONS);
 
-/** All 9 positions, flat. */
+/** All 14 positions, flat: 4 Kỹ thuật/Backup + 10 Tư vấn. */
 export const ALL_POSITIONS: TablePosition[] = [
   ...KYTHUAT_POSITIONS,
   ...CONSULT_POSITIONS,
@@ -131,10 +135,10 @@ export const CLUSTER_LABELS: Record<ClusterKey, string> = {
   consult: 'Tư vấn',
 };
 
-// Compile-time sanity: the floor plan mandates exactly 11 positions (3/8).
-if (KYTHUAT_POSITIONS.length !== 3 || CONSULT_POSITIONS.length !== 8) {
+// Compile-time sanity: 4 Kỹ thuật/Backup + 10 Tư vấn.
+if (KYTHUAT_POSITIONS.length !== 4 || CONSULT_POSITIONS.length !== 10) {
   throw new Error(
-    `layoutConfig: expected 3/8 positions, got ` +
+    `layoutConfig: expected 4/10 positions, got ` +
       `${KYTHUAT_POSITIONS.length}/${CONSULT_POSITIONS.length}`,
   );
 }
