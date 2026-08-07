@@ -10,6 +10,7 @@ import LayoutDashboard, { type WaitingZoneKey } from '@/components/LayoutDashboa
 import Sidebar from '@/components/Sidebar';
 import StatusLegend from '@/components/StatusLegend';
 import WaitingPopover from '@/components/WaitingPopover';
+import ViewSwitcher from '@/components/ViewSwitcher';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { useLarkSettings } from '@/config/larkSettings';
 import { deskUiStatus } from '@/types/desk';
@@ -105,6 +106,7 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+            <ViewSwitcher active="main" />
             <a
               href="#/settings"
               className="flex min-h-8 items-center rounded border border-brand px-3 font-semibold text-brand hover:bg-brand hover:text-white"

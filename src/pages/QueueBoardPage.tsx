@@ -8,6 +8,7 @@
  */
 import { CLUSTER_LABELS } from '@/config/layoutConfig';
 import QueueBoard from '@/components/QueueBoard';
+import ViewSwitcher from '@/components/ViewSwitcher';
 import { useQueueBoardData } from '@/hooks/useQueueBoardData';
 import type { ClusterKey } from '@/types/desk';
 
@@ -27,12 +28,7 @@ export default function QueueBoardPage({ cluster }: { cluster: ClusterKey }) {
           </div>
 
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-            <a
-              href="#/"
-              className="flex min-h-8 items-center rounded border border-neutral-300 px-3 font-medium text-neutral-600 hover:bg-neutral-50"
-            >
-              ← Dashboard
-            </a>
+            <ViewSwitcher active={cluster === 'consult' ? 'tuvan' : 'kythuat'} />
             <span
               className={[
                 'rounded-full px-2 py-1 font-semibold',
