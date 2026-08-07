@@ -127,7 +127,7 @@ export const DEFAULT_CHECKIN_FIELDS: CheckinFieldMap = {
   stt: 'STT',
   name: 'Họ và tên',
   product: 'SP 1',
-  note: 'Note UDTT',
+  note: 'Check UD Thanh toán',
   deviceAccepted: 'Check nghiệm thu',
   oldDeviceCheck: 'Thu cũ check',
   backupCheck: 'Backup check',

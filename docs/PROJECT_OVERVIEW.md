@@ -139,7 +139,7 @@ App đọc **5 bảng** (map từ workbook thật `NPI_Testing_2.2`; không còn
 `STT gần nhất (helper)` · `Trạng thái gần nhất (helper)` ·
 `Khách gần nhất (helper)` · `Trạng thái hiện tại (kết quả chính)`
 
-**Bảng `Check in`**: `STT` · `Họ và tên` · `SP 1` · `Note UDTT`.
+**Bảng `Check in`**: `STT` · `Họ và tên` · `SP 1` · `Check UD Thanh toán`.
 **Bảng `Danh sách đơn hàng`**: chỉ cần **số dòng**.
 
 ### 5.2 Định dạng wire của Lark (list-records)

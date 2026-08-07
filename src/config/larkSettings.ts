@@ -75,7 +75,11 @@ function hydrate(raw: unknown): LarkSettings {
     ...p,
     tableIds: { ...base.tableIds, ...(p.tableIds ?? {}) },
     fields: {
-      checkin: { ...base.fields.checkin, ...(p.fields?.checkin ?? {}) },
+      checkin: {
+        ...base.fields.checkin,
+        ...(p.fields?.checkin ?? {}),
+        note: p.fields?.checkin?.note === 'Note UDTT' ? 'Check UD Thanh toán' : p.fields?.checkin?.note ?? base.fields.checkin.note,
+      },
       master: { ...base.fields.master, ...(p.fields?.master ?? {}) },
       dispatch: {
         deskField: { ...base.fields.dispatch.deskField, ...(p.fields?.dispatch?.deskField ?? {}) },
