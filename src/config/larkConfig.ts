@@ -47,6 +47,8 @@ export interface CheckinFieldMap {
   oldDeviceCheck: string;
   /** Cột "Backup check" — hiển thị ngay dưới "Thu cũ check" trong các popover khách. */
   backupCheck: string;
+  /** Link điều phối cho khách đang ở khu Đã check-in. */
+  dispatchHyperlink: string;
   /** Khâu vừa hoàn tất (formula) — dùng cho dòng "Trạng thái" ở "Chờ điều phối". */
   doneInFlow: string;
   /** Đã xong toàn bộ quy trình chưa (formula) — giá trị "End flow" | "In flow". */
@@ -132,6 +134,7 @@ export const DEFAULT_CHECKIN_FIELDS: CheckinFieldMap = {
   deviceAccepted: 'Check nghiệm thu',
   oldDeviceCheck: 'Thu cũ check',
   backupCheck: 'Backup check',
+  dispatchHyperlink: 'Hyperlink Điều phối',
   doneInFlow: 'Done in Flow',
   endFlow: 'End flow',
   time: 'Thời gian',
@@ -148,7 +151,7 @@ export const DEFAULT_MASTER_FIELDS: MasterFieldMap = {
 };
 
 export const DEFAULT_DISPATCH_FIELDS: DispatchFieldMap = {
-  deskField: { kythuat: 'DS thu cũ', consult: 'DS Tư vấn' },
+  deskField: { kythuat: 'DS Thu cũ', consult: 'DS Tư vấn' },
   backupDeskField: 'DS Backup',
   name: 'Họ và tên',
 };
