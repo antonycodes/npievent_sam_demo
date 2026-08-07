@@ -193,6 +193,7 @@ export const CHECKIN_LABELS: Record<keyof CheckinFieldMap, string> = {
   deviceAccepted: 'Check nghiệm thu (đã thu máy cũ)',
   oldDeviceCheck: 'Thu cũ check (lựa chọn — hiển thị nguyên văn)',
   backupCheck: 'Backup check (lựa chọn — hiển thị nguyên văn)',
+  dispatchHyperlink: 'Hyperlink Điều phối (khách Đã check-in)',
   doneInFlow: 'Done in Flow (khâu vừa hoàn tất)',
   endFlow: 'End flow (đã xong toàn bộ quy trình)',
   time: 'Thời gian check-in (để sắp thứ tự)',

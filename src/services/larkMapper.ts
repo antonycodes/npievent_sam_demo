@@ -82,6 +82,29 @@ export function cellToString(v: LarkCellValue): string | null {
   return null;
 }
 
+/**
+ * Lark responses copied through some proxy/browser paths can expose Vietnamese
+ * column names as mojibake (for example `DS Thu cÅ©`). Read the exact key first
+ * and then compare a repaired form so dispatch still works during that state.
+ */
+function repairMojibake(value: string): string {
+  try {
+    const bytes = Uint8Array.from(value, (ch) => ch.charCodeAt(0) & 0xff);
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return value;
+  }
+}
+
+function fieldValue(fields: Record<string, LarkCellValue>, fieldName: string): LarkCellValue {
+  if (Object.prototype.hasOwnProperty.call(fields, fieldName)) return fields[fieldName];
+  const wanted = fieldName.trim().toLocaleLowerCase();
+  const found = Object.keys(fields).find(
+    (key) => repairMojibake(key).trim().toLocaleLowerCase() === wanted,
+  );
+  return found ? fields[found] : undefined;
+}
+
 /** Lấy URL từ hyperlink field Lark (plain URL hoặc object/link segment). */
 export function cellToUrl(v: LarkCellValue): string | null {
   if (typeof v === 'string') return /^https?:\/\//i.test(v.trim()) ? v.trim() : null;
@@ -164,7 +187,7 @@ interface CheckinIndexEntry {
 function indexCheckinByName(rows: LarkRecord[], fm: CheckinFieldMap): Map<string, CheckinIndexEntry> {
   const m = new Map<string, CheckinIndexEntry>();
   for (const r of rows) {
-    const name = cellToString(r.fields[fm.name]);
+    const name = cellToString(fieldValue(r.fields, fm.name));
     if (name) {
       m.set(name, {
         stt: cellToString(r.fields[fm.stt]),
@@ -255,12 +278,19 @@ const KT_TO_DESK: Record<string, string> = {
  */
 export function normalizeDeskCode(raw: string | null): string | null {
   if (!raw || isUnresolvedOptionId(raw)) return null;
-  const normalized = raw.toUpperCase();
+  // Lark single-select/lookup values may arrive with spaces or the UI alias
+  // (KT1) instead of the stored technical code (TC1). Normalize both forms
+  // before joining dispatch rows to the fixed layout position.
+  const normalized = raw.trim().toUpperCase().replace(/\s+/g, '');
   if (normalized === 'BK.X') return 'BK.X';
   if (KT_TO_DESK[normalized]) return KT_TO_DESK[normalized];
+  const kt = /^K(?:T|ỸTHUẬT)([1-3])$/.exec(normalized);
+  if (kt) return `TC${kt[1]}`;
+  const tc = /^TC([1-3])$/.exec(normalized);
+  if (tc) return `TC${tc[1]}`;
   const m = /^BK\d+$/i.exec(raw);
-  if (m) return BK_TO_DESK[raw.toUpperCase()] ?? null;
-  return raw;
+  if (m) return BK_TO_DESK[normalized] ?? null;
+  return normalized;
 }
 
 /** Suy cụm từ tiền tố mã bàn — "TC..." → Kỹ thuật, "TV..." → Tư vấn (xem layoutConfig.ts's `ID_PREFIX`). */
@@ -396,7 +426,7 @@ function indexDispatchByDeskCode(rows: LarkRecord[], fm: DispatchFieldMap): Map<
     const name = cellToString(r.fields[fm.name]);
     if (!name) continue;
     for (const field of deskFields) {
-      const deskCode = normalizeDeskCode(cellToString(r.fields[field]));
+      const deskCode = normalizeDeskCode(cellToString(fieldValue(r.fields, field)));
       if (!deskCode) continue;
       const set = result.get(deskCode) ?? new Set<string>();
       set.add(name);
@@ -438,12 +468,12 @@ function backupDisplayCode(raw: string | null): string | null {
 function indexDispatchDetailByName(rows: LarkRecord[], fm: DispatchFieldMap): Map<string, DispatchDetail> {
   const result = new Map<string, DispatchDetail>();
   for (const r of rows) {
-    const name = cellToString(r.fields[fm.name]);
+    const name = cellToString(fieldValue(r.fields, fm.name));
     if (!name) continue;
     const previous = result.get(name) ?? { dsTuVan: null, dsThuCu: null, dsBackup: null };
-    const dsTuVan = cellToString(r.fields[fm.deskField.consult]);
-    const dsThuCu = cellToString(r.fields[fm.deskField.kythuat]);
-    const dsBackup = backupDisplayCode(cellToString(r.fields[fm.backupDeskField]));
+    const dsTuVan = cellToString(fieldValue(r.fields, fm.deskField.consult));
+    const dsThuCu = cellToString(fieldValue(r.fields, fm.deskField.kythuat));
+    const dsBackup = backupDisplayCode(cellToString(fieldValue(r.fields, fm.backupDeskField)));
     result.set(name, {
       dsTuVan: dsTuVan ?? previous.dsTuVan,
       dsThuCu: dsThuCu ?? previous.dsThuCu,
@@ -653,9 +683,9 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
       paymentNote: cellToString(r.fields[checkin.note]),
       deviceAccepted: cellToBool(r.fields[checkin.deviceAccepted]),
       deviceAcceptedText: cellToString(r.fields[checkin.deviceAccepted]),
-      hyperlink: hyperlinkByName.get(name) ?? null,
       oldDeviceCheck: cellToString(r.fields[checkin.oldDeviceCheck]),
       backupCheck: cellToString(r.fields[checkin.backupCheck]),
+      hyperlink: cellToUrl(r.fields[checkin.dispatchHyperlink]),
       dsTuVan: dd?.dsTuVan ?? null,
       dsThuCu: dd?.dsThuCu ?? null,
       dsBackup: dd?.dsBackup ?? null,
