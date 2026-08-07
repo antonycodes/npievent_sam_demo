@@ -12,8 +12,8 @@ import type { ClusterKey, TablePosition } from '@/types/desk';
 
 /**
  * Desk-code prefix SHOWN ON SCREEN — the ops-facing IDs are KT1–KT3 (Kỹ
- * thuật), TV1–TV8 (Tư vấn). See `ID_PREFIX` below for the (different) prefix
- * used as the Lark join key.
+ * thuật), TV1–TV8 (Tư vấn). `normalizeDeskCode` accepts both KT and the
+ * legacy Lark join codes TC for the kỹ thuật positions.
  */
 export const CLUSTER_PREFIX: Record<ClusterKey, string> = {
   kythuat: 'KT',

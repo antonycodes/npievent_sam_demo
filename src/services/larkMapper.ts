@@ -211,6 +211,13 @@ const BK_TO_DESK: Record<string, string> = {
   BK13: 'TC3',
 };
 
+/** Mã hiển thị Kỹ thuật trong Điều phối → mã join cũ đang dùng trong Lark. */
+const KT_TO_DESK: Record<string, string> = {
+  KT1: 'TC1',
+  KT2: 'TC2',
+  KT3: 'TC3',
+};
+
 /**
  * NV "Backup" (mã "BK<n>") KHÔNG map cứng vào riêng Kỹ thuật nữa (đảo ngược
  * quyết định 2026-08-06 trước đó): giờ backup được giao cho CẢ NV Tư vấn lẫn
@@ -222,6 +229,8 @@ const BK_TO_DESK: Record<string, string> = {
  */
 export function normalizeDeskCode(raw: string | null): string | null {
   if (!raw || isUnresolvedOptionId(raw)) return null;
+  const normalized = raw.toUpperCase();
+  if (KT_TO_DESK[normalized]) return KT_TO_DESK[normalized];
   const m = /^BK\d+$/i.exec(raw);
   if (m) return BK_TO_DESK[raw.toUpperCase()] ?? null;
   return raw;
