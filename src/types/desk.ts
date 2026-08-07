@@ -40,7 +40,7 @@ export interface DeskCustomer {
   stt: string | null; // STT khách (hiển thị trên chấm)
   name: string | null; // tên (hiển thị khi hover / trong popover)
   productName?: string | null; // SP 1 (join Check in theo tên)
-  paymentNote?: string | null; // Note UDTT (join Check in theo tên)
+  paymentNote?: string | null; // Check UD Thanh toán (join Check in theo tên)
   deviceAccepted?: boolean | null; // Đã nghiệm thu thiết bị (join Check in theo tên)
   deviceAcceptedText?: string | null; // Nguyên văn cột Check nghiệm thu
   oldDeviceCheck?: string | null; // Cột "Thu cũ check" — nguyên văn lựa chọn (join Check in theo tên)
@@ -97,7 +97,7 @@ export interface DeskLiveState {
   customerSTT: string | null;
   customerName: string | null;
   productName: string | null; // SP 1 (Master_Check in, by name)
-  paymentNote: string | null; // Note UDTT (Master_Check in, by name)
+  paymentNote: string | null; // Check UD Thanh toán (Master_Check in, by name)
   deviceAccepted: boolean | null; // Đã nghiệm thu thiết bị (Master_Check in, by name)
   deviceAcceptedText?: string | null; // Nguyên văn cột Check nghiệm thu
   /** Mọi khách đang "Tiếp nhận" cùng lúc tại bàn này, sắp theo "Thời gian" trong `Master`. */

@@ -36,7 +36,7 @@ tại. Nếu base của bạn đặt tên khác → sửa trong `src/config/lark
 (không cần sửa code).
 
 **Bảng `Master_Check in`** (trước là `Check in`, tên CỘT giữ nguyên) cần:
-`STT` · `Họ và tên` · `SP 1` · `Note UDTT` · `Check nghiệm thu` ·
+`STT` · `Họ và tên` · `SP 1` · `Check UD Thanh toán` · `Check nghiệm thu` ·
 `Thu cũ check` · `Done in Flow` · `End flow` · `Thời gian`
 (dùng cho số đã check-in + chi tiết khách, join theo tên). Không còn cần cột
 "Status in thu cũ"/"Status in tư vấn" — "Chờ điều phối" giờ đọc thẳng từ
