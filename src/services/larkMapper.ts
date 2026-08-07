@@ -355,7 +355,11 @@ function indexMasterByDeskCode(
  * cột này khác rỗng tuỳ "Phân loại", nên đọc cả 2 cột trên mọi dòng là an toàn).
  */
 function indexDispatchByDeskCode(rows: LarkRecord[], fm: DispatchFieldMap): Map<string, Set<string>> {
-  const deskFields = [fm.deskField.kythuat, fm.deskField.consult];
+  // Base vẫn lưu mã thật TC1/TC2/TC3 và BK11/BK12/BK13. normalizeDeskCode
+  // quy cả hai về vị trí nội bộ TC1/TC2/TC3; layout sẽ render thành KT1/KT2/KT3.
+  // DS Backup cũng là một phân công hợp lệ nên phải tính vào hàng chờ của vị
+  // trí tương ứng, không chỉ dùng để hiển thị popover.
+  const deskFields = [fm.deskField.kythuat, fm.deskField.consult, fm.backupDeskField];
   const result = new Map<string, Set<string>>();
   for (const r of rows) {
     const name = cellToString(r.fields[fm.name]);
