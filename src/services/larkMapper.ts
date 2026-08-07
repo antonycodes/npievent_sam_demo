@@ -132,6 +132,7 @@ interface CheckinIndexEntry {
   product: string | null;
   note: string | null;
   deviceAccepted: boolean;
+  deviceAcceptedText: string | null;
   /** Cột "Thu cũ check" — nguyên văn lựa chọn (single-select, có thể ≥ 2 tuỳ chọn). */
   oldDeviceCheck: string | null;
   /** Cột "Backup check" — nguyên văn lựa chọn. */
@@ -158,6 +159,7 @@ function indexCheckinByName(rows: LarkRecord[], fm: CheckinFieldMap): Map<string
         product: cellToString(r.fields[fm.product]),
         note: cellToString(r.fields[fm.note]),
         deviceAccepted: cellToBool(r.fields[fm.deviceAccepted]),
+        deviceAcceptedText: cellToString(r.fields[fm.deviceAccepted]),
         oldDeviceCheck: cellToString(r.fields[fm.oldDeviceCheck]),
         backupCheck: cellToString(r.fields[fm.backupCheck]),
         doneInFlow: cellToString(r.fields[fm.doneInFlow]),
@@ -211,6 +213,13 @@ const BK_TO_DESK: Record<string, string> = {
   BK13: 'TC3',
 };
 
+/** Mã hiển thị Kỹ thuật trong Điều phối → mã join cũ đang dùng trong Lark. */
+const KT_TO_DESK: Record<string, string> = {
+  KT1: 'TC1',
+  KT2: 'TC2',
+  KT3: 'TC3',
+};
+
 /**
  * NV "Backup" (mã "BK<n>") KHÔNG map cứng vào riêng Kỹ thuật nữa (đảo ngược
  * quyết định 2026-08-06 trước đó): giờ backup được giao cho CẢ NV Tư vấn lẫn
@@ -222,6 +231,8 @@ const BK_TO_DESK: Record<string, string> = {
  */
 export function normalizeDeskCode(raw: string | null): string | null {
   if (!raw || isUnresolvedOptionId(raw)) return null;
+  const normalized = raw.toUpperCase();
+  if (KT_TO_DESK[normalized]) return KT_TO_DESK[normalized];
   const m = /^BK\d+$/i.exec(raw);
   if (m) return BK_TO_DESK[raw.toUpperCase()] ?? null;
   return raw;
@@ -320,6 +331,7 @@ function indexMasterByDeskCode(
         productName: ci?.product ?? null,
         paymentNote: ci?.note ?? null,
         deviceAccepted: ci?.deviceAccepted ?? null,
+        deviceAcceptedText: ci?.deviceAcceptedText ?? null,
         oldDeviceCheck: ci?.oldDeviceCheck ?? null,
         backupCheck: ci?.backupCheck ?? null,
         dsTuVan: dd?.dsTuVan ?? null,
@@ -346,7 +358,11 @@ function indexMasterByDeskCode(
  * cột này khác rỗng tuỳ "Phân loại", nên đọc cả 2 cột trên mọi dòng là an toàn).
  */
 function indexDispatchByDeskCode(rows: LarkRecord[], fm: DispatchFieldMap): Map<string, Set<string>> {
-  const deskFields = [fm.deskField.kythuat, fm.deskField.consult];
+  // Base vẫn lưu mã thật TC1/TC2/TC3 và BK11/BK12/BK13. normalizeDeskCode
+  // quy cả hai về vị trí nội bộ TC1/TC2/TC3; layout sẽ render thành KT1/KT2/KT3.
+  // DS Backup cũng là một phân công hợp lệ nên phải tính vào hàng chờ của vị
+  // trí tương ứng, không chỉ dùng để hiển thị popover.
+  const deskFields = [fm.deskField.kythuat, fm.deskField.consult, fm.backupDeskField];
   const result = new Map<string, Set<string>>();
   for (const r of rows) {
     const name = cellToString(r.fields[fm.name]);
@@ -548,6 +564,7 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
       productName: primary?.productName ?? null,
       paymentNote: primary?.paymentNote ?? null,
       deviceAccepted: primary?.deviceAccepted ?? null,
+      deviceAcceptedText: primary?.deviceAcceptedText ?? null,
       receivedCustomers,
     };
   }
@@ -568,6 +585,7 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
       productName: ci?.product ?? null,
       paymentNote: ci?.note ?? null,
       deviceAccepted: ci?.deviceAccepted ?? null,
+      deviceAcceptedText: ci?.deviceAcceptedText ?? null,
       oldDeviceCheck: ci?.oldDeviceCheck ?? null,
       backupCheck: ci?.backupCheck ?? null,
       dsTuVan: dd?.dsTuVan ?? null,
@@ -604,6 +622,7 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
       productName: cellToString(r.fields[checkin.product]),
       paymentNote: cellToString(r.fields[checkin.note]),
       deviceAccepted: cellToBool(r.fields[checkin.deviceAccepted]),
+      deviceAcceptedText: cellToString(r.fields[checkin.deviceAccepted]),
       oldDeviceCheck: cellToString(r.fields[checkin.oldDeviceCheck]),
       backupCheck: cellToString(r.fields[checkin.backupCheck]),
       dsTuVan: dd?.dsTuVan ?? null,
@@ -623,6 +642,7 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
       productName: ci.product,
       paymentNote: ci.note,
       deviceAccepted: ci.deviceAccepted,
+      deviceAcceptedText: ci.deviceAcceptedText,
       oldDeviceCheck: ci.oldDeviceCheck,
       backupCheck: ci.backupCheck,
       dsTuVan: dd?.dsTuVan ?? null,

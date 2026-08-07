@@ -80,7 +80,7 @@ export default function EndFlowTable({ customers, onClose }: EndFlowTableProps) 
                     <td className="py-2 pr-3 text-neutral-600">{c.productName ?? '—'}</td>
                     <td className="py-2 pr-3 text-neutral-600">{c.paymentNote ?? '—'}</td>
                     <td className={`py-2 pr-3 ${c.deviceAccepted ? 'font-bold text-red-600' : 'text-neutral-600'}`}>
-                      {c.deviceAccepted ? 'Đã nghiệm thu' : 'Chưa nghiệm thu'}
+                      {c.deviceAcceptedText ?? '—'}
                     </td>
                     <td className="py-2 pr-3 text-neutral-600">{c.doneInFlow ?? '—'}</td>
                     <td className="py-2 text-neutral-600">{dispatchSummary(c)}</td>

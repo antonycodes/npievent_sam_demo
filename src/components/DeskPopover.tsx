@@ -106,7 +106,7 @@ export default function DeskPopover({ desk, onClose }: DeskPopoverProps) {
                   <Row label="STT Khách" value={desk.customerSTT} />
                   <Row
                     label="Check thu máy cũ"
-                    value={desk.deviceAccepted ? 'Đã nghiệm thu' : 'Chưa nghiệm thu'}
+                    value={desk.deviceAcceptedText}
                     tone={desk.deviceAccepted ? 'red' : undefined}
                   />
                 </>

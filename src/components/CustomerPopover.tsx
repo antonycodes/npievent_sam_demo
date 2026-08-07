@@ -92,7 +92,7 @@ export default function CustomerPopover({ desk, customer, onClose }: CustomerPop
           <Row label="Ghi chú thanh toán" value={customer.paymentNote ?? null} />
           <Row
             label="Check thu máy cũ"
-            value={customer.deviceAccepted ? 'Đã nghiệm thu' : 'Chưa nghiệm thu'}
+            value={customer.deviceAcceptedText}
             tone={customer.deviceAccepted ? 'red' : undefined}
           />
           <Row
