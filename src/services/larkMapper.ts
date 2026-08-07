@@ -132,6 +132,7 @@ interface CheckinIndexEntry {
   product: string | null;
   note: string | null;
   deviceAccepted: boolean;
+  deviceAcceptedText: string | null;
   /** Cột "Thu cũ check" — nguyên văn lựa chọn (single-select, có thể ≥ 2 tuỳ chọn). */
   oldDeviceCheck: string | null;
   /** Cột "Backup check" — nguyên văn lựa chọn. */
@@ -158,6 +159,7 @@ function indexCheckinByName(rows: LarkRecord[], fm: CheckinFieldMap): Map<string
         product: cellToString(r.fields[fm.product]),
         note: cellToString(r.fields[fm.note]),
         deviceAccepted: cellToBool(r.fields[fm.deviceAccepted]),
+        deviceAcceptedText: cellToString(r.fields[fm.deviceAccepted]),
         oldDeviceCheck: cellToString(r.fields[fm.oldDeviceCheck]),
         backupCheck: cellToString(r.fields[fm.backupCheck]),
         doneInFlow: cellToString(r.fields[fm.doneInFlow]),
@@ -329,6 +331,7 @@ function indexMasterByDeskCode(
         productName: ci?.product ?? null,
         paymentNote: ci?.note ?? null,
         deviceAccepted: ci?.deviceAccepted ?? null,
+        deviceAcceptedText: ci?.deviceAcceptedText ?? null,
         oldDeviceCheck: ci?.oldDeviceCheck ?? null,
         backupCheck: ci?.backupCheck ?? null,
         dsTuVan: dd?.dsTuVan ?? null,
@@ -561,6 +564,7 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
       productName: primary?.productName ?? null,
       paymentNote: primary?.paymentNote ?? null,
       deviceAccepted: primary?.deviceAccepted ?? null,
+      deviceAcceptedText: primary?.deviceAcceptedText ?? null,
       receivedCustomers,
     };
   }
@@ -581,6 +585,7 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
       productName: ci?.product ?? null,
       paymentNote: ci?.note ?? null,
       deviceAccepted: ci?.deviceAccepted ?? null,
+      deviceAcceptedText: ci?.deviceAcceptedText ?? null,
       oldDeviceCheck: ci?.oldDeviceCheck ?? null,
       backupCheck: ci?.backupCheck ?? null,
       dsTuVan: dd?.dsTuVan ?? null,
@@ -617,6 +622,7 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
       productName: cellToString(r.fields[checkin.product]),
       paymentNote: cellToString(r.fields[checkin.note]),
       deviceAccepted: cellToBool(r.fields[checkin.deviceAccepted]),
+      deviceAcceptedText: cellToString(r.fields[checkin.deviceAccepted]),
       oldDeviceCheck: cellToString(r.fields[checkin.oldDeviceCheck]),
       backupCheck: cellToString(r.fields[checkin.backupCheck]),
       dsTuVan: dd?.dsTuVan ?? null,
@@ -636,6 +642,7 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
       productName: ci.product,
       paymentNote: ci.note,
       deviceAccepted: ci.deviceAccepted,
+      deviceAcceptedText: ci.deviceAcceptedText,
       oldDeviceCheck: ci.oldDeviceCheck,
       backupCheck: ci.backupCheck,
       dsTuVan: dd?.dsTuVan ?? null,

@@ -42,6 +42,7 @@ export interface DeskCustomer {
   productName?: string | null; // SP 1 (join Check in theo tên)
   paymentNote?: string | null; // Note UDTT (join Check in theo tên)
   deviceAccepted?: boolean | null; // Đã nghiệm thu thiết bị (join Check in theo tên)
+  deviceAcceptedText?: string | null; // Nguyên văn cột Check nghiệm thu
   oldDeviceCheck?: string | null; // Cột "Thu cũ check" — nguyên văn lựa chọn (join Check in theo tên)
   backupCheck?: string | null; // Cột "Backup check" — nguyên văn lựa chọn (join Check in theo tên)
   // 3 mã khâu từ `Master Điều phối` (join theo tên, cộng dồn qua nhiều dòng).
@@ -98,6 +99,7 @@ export interface DeskLiveState {
   productName: string | null; // SP 1 (Master_Check in, by name)
   paymentNote: string | null; // Note UDTT (Master_Check in, by name)
   deviceAccepted: boolean | null; // Đã nghiệm thu thiết bị (Master_Check in, by name)
+  deviceAcceptedText?: string | null; // Nguyên văn cột Check nghiệm thu
   /** Mọi khách đang "Tiếp nhận" cùng lúc tại bàn này, sắp theo "Thời gian" trong `Master`. */
   receivedCustomers: DeskCustomer[];
 }
