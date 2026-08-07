@@ -52,7 +52,7 @@ export default function DeskPopover({ desk, onClose }: DeskPopoverProps) {
       role="dialog"
       aria-label={`Thông tin bàn ${label}`}
     >
-      <div className="w-64 rounded-lg border border-neutral-200 bg-white p-3 shadow-xl">
+      <div className="w-[min(32rem,calc(100vw-2rem))] rounded-lg border border-neutral-200 bg-white p-3 shadow-xl">
         <div className="mb-2 flex items-start justify-between gap-2">
           <div>
             <div className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">
@@ -157,7 +157,7 @@ function Row({
   return (
     <div className="flex justify-between gap-3">
       <dt className="shrink-0 text-neutral-500">{label}</dt>
-      <dd className={`text-right ${cls}`}>{value && value.trim() ? value : '—'}</dd>
+      <dd className={`min-w-0 max-w-[72%] break-words text-right ${cls}`}>{value && value.trim() ? value : '—'}</dd>
     </div>
   );
 }

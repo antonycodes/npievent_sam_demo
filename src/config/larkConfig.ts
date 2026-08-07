@@ -70,6 +70,7 @@ export interface MasterFieldMap {
   staff: string;
   /** Phân loại khâu của bản ghi SS_Master: "Tư vấn" / "Thu cũ" / "Backup". */
   stage: string;
+  hyperlink: string;
   /** Dùng để sắp khách theo thứ tự khi 1 NV/bàn phục vụ nhiều khách cùng lúc. */
   time: string;
 }
@@ -142,6 +143,7 @@ export const DEFAULT_MASTER_FIELDS: MasterFieldMap = {
   name: 'Họ và tên',
   staff: 'Người',
   stage: 'Loại 2',
+  hyperlink: 'Hyperlink Master',
   time: 'Thời gian',
 };
 

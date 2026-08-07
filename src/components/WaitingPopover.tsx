@@ -89,7 +89,7 @@ export default function WaitingPopover({ zoneLabel, zone, customer, x, y, onClos
       role="dialog"
       aria-label={`Khách STT ${customer.stt ?? ''}`}
     >
-      <div className="w-60 rounded-lg border border-amber-300 bg-white p-3 shadow-xl">
+      <div className="w-[min(32rem,calc(100vw-2rem))] rounded-lg border border-amber-300 bg-white p-3 shadow-xl">
         <div className="mb-2 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-amber-500 px-1.5 text-xs font-bold text-white">
@@ -112,6 +112,7 @@ export default function WaitingPopover({ zoneLabel, zone, customer, x, y, onClos
           <Row label="Trạng thái" value={statusTextFor(zone, customer)} />
           <Row label="Tên sản phẩm" value={customer.productName ?? null} />
           <Row label="Ghi chú thanh toán" value={customer.paymentNote ?? null} />
+          <LinkRow label="Hyperlink Master" value={customer.hyperlink} />
           <Row
             label="Check thu máy cũ"
             value={customer.deviceAcceptedText}
@@ -148,7 +149,18 @@ function Row({
   return (
     <div className="flex justify-between gap-3">
       <dt className="shrink-0 text-neutral-500">{label}</dt>
-      <dd className={`text-right ${cls}`}>{value && value.trim() ? value : '—'}</dd>
+      <dd className={`min-w-0 max-w-[72%] break-words text-right ${cls}`}>{value && value.trim() ? value : '—'}</dd>
+    </div>
+  );
+}
+
+function LinkRow({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div className="flex justify-between gap-3">
+      <dt className="shrink-0 text-neutral-500">{label}</dt>
+      <dd className="max-w-[65%] truncate text-right font-medium text-blue-600">
+        {value ? <a href={value} target="_blank" rel="noreferrer" className="underline">Mở liên kết</a> : '—'}
+      </dd>
     </div>
   );
 }

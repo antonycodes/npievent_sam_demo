@@ -82,6 +82,18 @@ export function cellToString(v: LarkCellValue): string | null {
   return null;
 }
 
+/** Lấy URL từ hyperlink field Lark (plain URL hoặc object/link segment). */
+export function cellToUrl(v: LarkCellValue): string | null {
+  if (typeof v === 'string') return /^https?:\/\//i.test(v.trim()) ? v.trim() : null;
+  if (!Array.isArray(v)) return null;
+  for (const part of v as Array<Record<string, unknown>>) {
+    for (const candidate of [part.url, part.link, part.href, part.text]) {
+      if (typeof candidate === 'string' && /^https?:\/\//i.test(candidate.trim())) return candidate.trim();
+    }
+  }
+  return null;
+}
+
 export function cellToNumber(v: LarkCellValue): number {
   if (typeof v === 'number') return v;
   const s = cellToString(v);
@@ -168,6 +180,16 @@ function indexCheckinByName(rows: LarkRecord[], fm: CheckinFieldMap): Map<string
     }
   }
   return m;
+}
+
+function indexMasterHyperlinkByName(rows: LarkRecord[], fm: MasterFieldMap): Map<string, string> {
+  const result = new Map<string, string>();
+  for (const r of rows) {
+    const name = cellToString(r.fields[fm.name]);
+    const url = cellToUrl(r.fields[fm.hyperlink]);
+    if (name && url) result.set(name, url);
+  }
+  return result;
 }
 
 /**
@@ -318,6 +340,7 @@ function indexMasterByDeskCode(
   latestRows: MasterRow[],
   checkinByName: Map<string, CheckinIndexEntry>,
   dispatchDetailByName: Map<string, DispatchDetail>,
+  hyperlinkByName: Map<string, string>,
 ): Map<string, DeskGroup> {
   const entries: Array<{ deskCode: string; time: number; staff: string | null; customer: DeskCustomer }> = [];
 
@@ -336,6 +359,7 @@ function indexMasterByDeskCode(
         paymentNote: ci?.note ?? null,
         deviceAccepted: ci?.deviceAccepted ?? null,
         deviceAcceptedText: ci?.deviceAcceptedText ?? null,
+        hyperlink: hyperlinkByName.get(row.name) ?? null,
         oldDeviceCheck: ci?.oldDeviceCheck ?? null,
         backupCheck: ci?.backupCheck ?? null,
         dsTuVan: dd?.dsTuVan ?? null,
@@ -508,6 +532,7 @@ function indexDeskCodeByStaffName(rows: LarkRecord[], fm: DsMasterFieldMap): Map
 export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldConfig()): MappedData {
   const { checkin, master, dispatch, dsMaster } = fields;
   const checkinByName = indexCheckinByName(tables.checkin, checkin);
+  const hyperlinkByName = indexMasterHyperlinkByName(tables.master, master);
   const deskCodeByStaffName = indexDeskCodeByStaffName(tables.dsMaster, dsMaster);
   const dispatchDetailByName = indexDispatchDetailByName(tables.dispatch, dispatch);
   const personnelDetailByName = mergeReceivedDetailByName(
@@ -520,7 +545,7 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
   // (xa hơn), tránh 1 dòng "Tiếp nhận" cũ chưa xoá đè lên dòng "Hoàn tất" mới
   // hơn cho cùng cặp (bàn, khách) — xem `latestByDeskAndName`.
   const latestMasterRows = latestByDeskAndName(tables.master, master, deskCodeByStaffName);
-  const activeByDeskCode = indexMasterByDeskCode(latestMasterRows, checkinByName, personnelDetailByName);
+  const activeByDeskCode = indexMasterByDeskCode(latestMasterRows, checkinByName, personnelDetailByName, hyperlinkByName);
   const dispatchByDeskCode = indexDispatchByDeskCode(tables.dispatch, dispatch);
   const nextSttByDeskCode = indexNextSttByDeskCode(tables.dsMaster, dsMaster);
   const statesById: Record<string, DeskLiveState> = {};
@@ -590,6 +615,7 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
       paymentNote: ci?.note ?? null,
       deviceAccepted: ci?.deviceAccepted ?? null,
       deviceAcceptedText: ci?.deviceAcceptedText ?? null,
+      hyperlink: hyperlinkByName.get(row.name) ?? null,
       oldDeviceCheck: ci?.oldDeviceCheck ?? null,
       backupCheck: ci?.backupCheck ?? null,
       dsTuVan: dd?.dsTuVan ?? null,
@@ -627,6 +653,7 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
       paymentNote: cellToString(r.fields[checkin.note]),
       deviceAccepted: cellToBool(r.fields[checkin.deviceAccepted]),
       deviceAcceptedText: cellToString(r.fields[checkin.deviceAccepted]),
+      hyperlink: hyperlinkByName.get(name) ?? null,
       oldDeviceCheck: cellToString(r.fields[checkin.oldDeviceCheck]),
       backupCheck: cellToString(r.fields[checkin.backupCheck]),
       dsTuVan: dd?.dsTuVan ?? null,
@@ -647,6 +674,7 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
       paymentNote: ci.note,
       deviceAccepted: ci.deviceAccepted,
       deviceAcceptedText: ci.deviceAcceptedText,
+      hyperlink: hyperlinkByName.get(name) ?? null,
       oldDeviceCheck: ci.oldDeviceCheck,
       backupCheck: ci.backupCheck,
       dsTuVan: dd?.dsTuVan ?? null,

@@ -204,6 +204,7 @@ export const MASTER_FIELD_LABELS: Record<keyof MasterFieldMap, string> = {
   name: 'Họ và tên',
   staff: 'NV phụ trách (person field)',
   stage: 'Loại khâu (Loại 2 — Tư vấn/Thu cũ/Backup)',
+  hyperlink: 'Hyperlink Master',
   time: 'Thời gian (để sắp thứ tự nhiều khách/bàn)',
 };
 
