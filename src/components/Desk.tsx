@@ -50,12 +50,20 @@ export default function Desk({
       title={label}
       disabled={!interactive}
       onClick={() => interactive && onClick?.(id)}
-      style={{ left: `${x}%`, top: `${y}%` }}
+      style={{
+        left: `${x}%`,
+        top: `${y}%`,
+        // Long labels such as BK.X2 must remain inside the fixed-size node.
+        fontSize: label.length > 4 ? 'calc(var(--node-fs) * 0.78)' : 'var(--node-fs)',
+      }}
       className={[
         'absolute -translate-x-1/2 -translate-y-1/2 rounded-full',
         // Sized from the board scale (index.css) so the gap to the STT dots of
         // the row above stays proportional on every screen, iPad included.
-        'flex h-[var(--node)] min-w-[var(--node)] items-center justify-center px-[0.2em]',
+        // Keep every node the same diameter. Without a fixed width, the
+        // longer BK.X2 label expands its pill and makes the side margins look
+        // uneven against the dashed area border.
+        'flex h-[var(--node)] w-[var(--node)] items-center justify-center overflow-visible',
         'text-[length:var(--node-fs)] font-semibold leading-none',
         'border shadow-sm transition',
         interactive ? 'cursor-pointer hover:scale-110 hover:shadow-md' : 'cursor-default',

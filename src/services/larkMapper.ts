@@ -285,6 +285,7 @@ export function normalizeDeskCode(raw: string | null): string | null {
   // BK.X is a real standalone Lark code (not BK11/BK13). Some integrations
   // strip punctuation from single-select values, so accept both spellings.
   if (normalized === 'BK.X' || normalized === 'BKX') return 'BK.X';
+  if (normalized === 'BK.X2' || normalized === 'BKX2') return 'BK.X2';
   if (KT_TO_DESK[normalized]) return KT_TO_DESK[normalized];
   const kt = /^K(?:T|ỸTHUẬT)([1-3])$/.exec(normalized);
   if (kt) return `TC${kt[1]}`;
@@ -298,7 +299,7 @@ export function normalizeDeskCode(raw: string | null): string | null {
 /** Suy cụm từ tiền tố mã bàn — "TC..." → Kỹ thuật, "TV..." → Tư vấn (xem layoutConfig.ts's `ID_PREFIX`). */
 function clusterFromDeskCode(code: string | null): ClusterKey | null {
   if (!code) return null;
-  if (code === 'BK.X') return 'kythuat';
+  if (code === 'BK.X' || code === 'BK.X2') return 'kythuat';
   if (code.startsWith('TC')) return 'kythuat';
   if (code.startsWith('TV')) return 'consult';
   return null;
