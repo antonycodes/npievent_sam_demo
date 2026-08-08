@@ -8,6 +8,7 @@
  * existing text input always keeps working either way.
  */
 import { useEffect, useRef, useState } from 'react';
+import jsQR from 'jsqr';
 
 declare global {
   interface DetectedBarcode {
@@ -33,8 +34,9 @@ export default function QrScanButton({ onScan, label = '📷 Quét QR' }: QrScan
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  const supported = typeof window !== 'undefined' && Boolean(window.BarcodeDetector);
+  const supported = typeof navigator !== 'undefined' && Boolean(navigator.mediaDevices?.getUserMedia);
 
   const stop = () => {
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
@@ -50,7 +52,7 @@ export default function QrScanButton({ onScan, label = '📷 Quét QR' }: QrScan
   };
 
   useEffect(() => {
-    if (!open || !window.BarcodeDetector) return;
+    if (!open || !supported) return;
     let cancelled = false;
     const Detector = window.BarcodeDetector;
 
@@ -66,13 +68,25 @@ export default function QrScanButton({ onScan, label = '📷 Quét QR' }: QrScan
           videoRef.current.srcObject = stream;
           await videoRef.current.play();
         }
-        const detector = new Detector({ formats: ['qr_code'] });
+        const detector = Detector ? new Detector({ formats: ['qr_code'] }) : null;
+        const canvas = canvasRef.current ?? document.createElement('canvas');
+        canvasRef.current = canvas;
+        const context = canvas.getContext('2d', { willReadFrequently: true });
         const tick = async () => {
           if (cancelled || !videoRef.current) return;
           try {
-            const codes = await detector.detect(videoRef.current);
-            if (codes.length > 0 && codes[0].rawValue) {
-              onScan(codes[0].rawValue);
+            let value: string | null = null;
+            if (detector) {
+              value = (await detector.detect(videoRef.current))[0]?.rawValue ?? null;
+            } else if (context && videoRef.current.videoWidth > 0) {
+              canvas.width = videoRef.current.videoWidth;
+              canvas.height = videoRef.current.videoHeight;
+              context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+              const image = context.getImageData(0, 0, canvas.width, canvas.height);
+              value = jsQR(image.data, image.width, image.height)?.data ?? null;
+            }
+            if (value) {
+              onScan(value);
               close();
               return;
             }
@@ -99,6 +113,27 @@ export default function QrScanButton({ onScan, label = '📷 Quét QR' }: QrScan
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  const readImage = async (file: File) => {
+    setError(null);
+    try {
+      const bitmap = await createImageBitmap(file);
+      const canvas = document.createElement('canvas');
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      if (!context) throw new Error('Không đọc được ảnh QR.');
+      context.drawImage(bitmap, 0, 0);
+      bitmap.close();
+      const image = context.getImageData(0, 0, canvas.width, canvas.height);
+      const result = jsQR(image.data, image.width, image.height);
+      if (!result?.data) throw new Error('Không tìm thấy mã QR trong ảnh.');
+      onScan(result.data);
+      close();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Không đọc được ảnh QR.');
+    }
+  };
 
   return (
     <>
@@ -129,8 +164,7 @@ export default function QrScanButton({ onScan, label = '📷 Quét QR' }: QrScan
             </div>
             {!supported ? (
               <p className="text-sm text-red-600">
-                Trình duyệt này không hỗ trợ quét QR trực tiếp — vui lòng nhập link tay, hoặc mở trang
-                bằng Chrome trên Android.
+                Thiết bị không cho phép camera. Bạn có thể chọn ảnh QR bên dưới.
               </p>
             ) : error ? (
               <p className="text-sm text-red-600">{error}</p>
@@ -142,8 +176,17 @@ export default function QrScanButton({ onScan, label = '📷 Quét QR' }: QrScan
                 playsInline
               />
             )}
+            <canvas ref={canvasRef} className="hidden" />
+            <label className="mt-3 flex cursor-pointer items-center justify-center rounded border border-neutral-300 px-3 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50">
+              🖼️ Chọn ảnh QR từ thiết bị
+              <input type="file" accept="image/*" className="hidden" onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void readImage(file);
+                event.currentTarget.value = '';
+              }} />
+            </label>
             <p className="mt-2 text-xs text-neutral-400">
-              Đưa mã QR vào khung hình — link sẽ tự điền ngay khi nhận diện được.
+              Đưa mã QR vào khung hình hoặc chọn ảnh QR — link sẽ tự điền khi nhận diện được.
             </p>
           </div>
         </div>
