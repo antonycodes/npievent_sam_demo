@@ -519,12 +519,18 @@ function mergeReceivedDetailByName(
     const name = cellToString(fieldValue(row.fields, fm.name));
     const status = cellToString(fieldValue(row.fields, fm.status));
     const stage = normalizedStage(cellToString(fieldValue(row.fields, fm.stage)));
-    if (!name || !stage || (status !== STATUS_RECEIVED && status !== STATUS_COMPLETED)) continue;
+    if (!name || (status !== STATUS_RECEIVED && status !== STATUS_COMPLETED)) continue;
 
     const staff = cellToString(fieldValue(row.fields, fm.staff));
     const rawDeskCode = cellToString(fieldValue(row.fields, fm.deskCode));
+    const dispatchDetail = dispatchDetails.get(name);
+    const dispatchDeskCode = normalizeDeskCode(
+      dispatchDetail?.dsBackup ?? dispatchDetail?.dsThuCu ?? dispatchDetail?.dsTuVan ?? null,
+    );
     const primaryDeskCode =
-      normalizeDeskCode(rawDeskCode) ?? (staff ? deskCodeByStaffName.get(staff) ?? null : null);
+      normalizeDeskCode(rawDeskCode) ??
+      dispatchDeskCode ??
+      (staff ? deskCodeByStaffName.get(staff) ?? null : null);
     const previous = result.get(name) ?? { dsTuVan: null, dsThuCu: null, dsBackup: null };
 
     // BK.X/BK.X2 are standalone Backup nodes. Once SS_Master records the
@@ -532,6 +538,13 @@ function mergeReceivedDetailByName(
     // popup shows the real Backup node instead of an empty/old assignment.
     if (primaryDeskCode === 'BK.X' || primaryDeskCode === 'BK.X2') {
       previous.dsBackup = primaryDeskCode;
+    }
+
+    // A standalone Backup node must still be shown even if the stage field is
+    // absent/mapped differently in the live Base response.
+    if (!stage) {
+      result.set(name, previous);
+      continue;
     }
 
     if (stage === 'consult' && primaryDeskCode?.startsWith('TV')) previous.dsTuVan = primaryDeskCode;
