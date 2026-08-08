@@ -282,7 +282,9 @@ export function normalizeDeskCode(raw: string | null): string | null {
   // (KT1) instead of the stored technical code (TC1). Normalize both forms
   // before joining dispatch rows to the fixed layout position.
   const normalized = raw.trim().toUpperCase().replace(/\s+/g, '');
-  if (normalized === 'BK.X') return 'BK.X';
+  // BK.X is a real standalone Lark code (not BK11/BK13). Some integrations
+  // strip punctuation from single-select values, so accept both spellings.
+  if (normalized === 'BK.X' || normalized === 'BKX') return 'BK.X';
   if (KT_TO_DESK[normalized]) return KT_TO_DESK[normalized];
   const kt = /^K(?:T|ỸTHUẬT)([1-3])$/.exec(normalized);
   if (kt) return `TC${kt[1]}`;
@@ -334,16 +336,20 @@ function latestByDeskAndName(
   rows: LarkRecord[],
   fm: MasterFieldMap,
   deskCodeByStaffName: Map<string, string>,
+  dispatchDeskByName: Map<string, string>,
 ): MasterRow[] {
   const latest = new Map<string, MasterRow>();
   for (const r of rows) {
-    const name = cellToString(r.fields[fm.name]);
+    const name = cellToString(fieldValue(r.fields, fm.name));
     if (!name) continue;
-    const staff = cellToString(r.fields[fm.staff]);
+    const staff = cellToString(fieldValue(r.fields, fm.staff));
     const deskCode =
-      normalizeDeskCode(cellToString(r.fields[fm.deskCode])) ?? (staff ? deskCodeByStaffName.get(staff) ?? null : null);
+      normalizeDeskCode(cellToString(fieldValue(r.fields, fm.deskCode))) ??
+      (staff ? deskCodeByStaffName.get(staff) ?? null : null) ??
+      dispatchDeskByName.get(name) ??
+      null;
     if (!deskCode) continue;
-    const time = cellToNumber(r.fields[fm.time]);
+    const time = cellToNumber(fieldValue(r.fields, fm.time));
     const key = `${deskCode} ${name}`;
     const prev = latest.get(key);
     if (!prev || time >= prev.time) {
@@ -351,7 +357,7 @@ function latestByDeskAndName(
         deskCode,
         name,
         time,
-        status: cellToString(r.fields[fm.status]),
+        status: cellToString(fieldValue(r.fields, fm.status)),
         staff,
       });
     }
@@ -565,6 +571,11 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
   const hyperlinkByName = indexMasterHyperlinkByName(tables.master, master);
   const deskCodeByStaffName = indexDeskCodeByStaffName(tables.dsMaster, dsMaster);
   const dispatchDetailByName = indexDispatchDetailByName(tables.dispatch, dispatch);
+  const dispatchDeskByName = new Map<string, string>();
+  for (const [name, detail] of dispatchDetailByName) {
+    const code = normalizeDeskCode(detail.dsBackup ?? detail.dsThuCu ?? detail.dsTuVan);
+    if (code) dispatchDeskByName.set(name, code);
+  }
   const personnelDetailByName = mergeReceivedDetailByName(
     dispatchDetailByName,
     tables.master,
@@ -574,7 +585,7 @@ export function mapDeskStates(tables: LarkTables, fields: FieldConfig = toFieldC
   // Dedupe 1 LẦN — dùng chung cho cả occupancy (dưới) lẫn "Chờ điều phối"
   // (xa hơn), tránh 1 dòng "Tiếp nhận" cũ chưa xoá đè lên dòng "Hoàn tất" mới
   // hơn cho cùng cặp (bàn, khách) — xem `latestByDeskAndName`.
-  const latestMasterRows = latestByDeskAndName(tables.master, master, deskCodeByStaffName);
+  const latestMasterRows = latestByDeskAndName(tables.master, master, deskCodeByStaffName, dispatchDeskByName);
   const activeByDeskCode = indexMasterByDeskCode(latestMasterRows, checkinByName, personnelDetailByName, hyperlinkByName);
   const dispatchByDeskCode = indexDispatchByDeskCode(tables.dispatch, dispatch);
   const nextSttByDeskCode = indexNextSttByDeskCode(tables.dsMaster, dsMaster);
