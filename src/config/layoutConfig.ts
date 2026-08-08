@@ -5,8 +5,8 @@
  * reference image (2026-07-30), extended on 2026-08-03 to add TV7/TV8:
  *   - Khu vực kỹ thuật (KT) : 3 staff in a row, top-center-left  → 3
  *   - Khu vực tư vấn (TV)   : 5 vertical pairs, across the bottom → 10
- *   - Khu vực Kỹ thuật có thêm node BK.X → 4
- * Tổng cộng = 14 node.
+ *   - Khu vực Kỹ thuật có thêm node BK.X/BK.X2 → 5
+ * Tổng cộng = 15 node.
  */
 import type { ClusterKey, TablePosition } from '@/types/desk';
 
@@ -93,11 +93,12 @@ function buildGrid(cluster: ClusterKey, xs: number[], ys: number[]): TablePositi
 // dưới nữa (khu Tư vấn giờ có 4 cột, xem CONSULT_X). Đo trực tiếp trên trang
 // chạy thật (getBoundingClientRect) để chọn pitch — không đoán qua mắt: 20%
 // ngang đủ rộng cho cả node lẫn hàng chấm STT dưới nó.
-// Gom 3 KT thành một cụm bên trái, chừa vùng rộng bên phải cho node BK.X.
-const GROUP_X = [10, 22, 34];
+// Gom 3 KT thành một cụm bên trái, chừa vùng rộng bên phải cho các node BK.X.
+const GROUP_X = [10, 21.25, 32.5];
 export const KYTHUAT_POSITIONS: TablePosition[] = [
   ...buildGrid('kythuat', GROUP_X, [15]),
-  { id: 'BK.X', cluster: 'kythuat', label: 'BK.X', x: 49, y: 15, capacity: 5 },
+  { id: 'BK.X', cluster: 'kythuat', label: 'BK.X', x: 43.75, y: 15, capacity: 5 },
+  { id: 'BK.X2', cluster: 'kythuat', label: 'BK.X2', x: 55, y: 15, capacity: 5 },
 ];
 
 // ── Khu vực tư vấn (TV) — 5 cặp bàn xếp dọc (TV1/2 … TV9/10) ───────────────
@@ -108,7 +109,7 @@ export const KYTHUAT_POSITIONS: TablePosition[] = [
 // positions are listed explicitly instead of through buildGrid. Row pitch 26%
 // (đo thật: node cao ~4.7%, hàng chấm STT kéo dài thêm ~5.3% dưới tâm node) —
 // đủ thoáng so với bản cũ (16%) nhưng không tạo khoảng trắng lớn giữa 2 hàng.
-const CONSULT_X = [6, 18.5, 31, 43.5, 56];
+const CONSULT_X = [8, 19.5, 31, 42.5, 54];
 export const CONSULT_POSITIONS: TablePosition[] = [
   { id: 'TV1', cluster: 'consult', label: 'TV1', x: CONSULT_X[0], y: 46 },
   { id: 'TV2', cluster: 'consult', label: 'TV2', x: CONSULT_X[0], y: 72 },
@@ -123,7 +124,7 @@ export const CONSULT_POSITIONS: TablePosition[] = [
 ];
 assertGridSpacing('consult', CONSULT_POSITIONS);
 
-/** All 14 positions, flat: 4 Kỹ thuật/Backup + 10 Tư vấn. */
+/** All 15 positions, flat: 5 Kỹ thuật/Backup + 10 Tư vấn. */
 export const ALL_POSITIONS: TablePosition[] = [
   ...KYTHUAT_POSITIONS,
   ...CONSULT_POSITIONS,
@@ -135,10 +136,10 @@ export const CLUSTER_LABELS: Record<ClusterKey, string> = {
   consult: 'Tư vấn',
 };
 
-// Compile-time sanity: 4 Kỹ thuật/Backup + 10 Tư vấn.
-if (KYTHUAT_POSITIONS.length !== 4 || CONSULT_POSITIONS.length !== 10) {
+// Compile-time sanity: 5 Kỹ thuật/Backup + 10 Tư vấn.
+if (KYTHUAT_POSITIONS.length !== 5 || CONSULT_POSITIONS.length !== 10) {
   throw new Error(
-    `layoutConfig: expected 4/10 positions, got ` +
+    `layoutConfig: expected 5/10 positions, got ` +
       `${KYTHUAT_POSITIONS.length}/${CONSULT_POSITIONS.length}`,
   );
 }

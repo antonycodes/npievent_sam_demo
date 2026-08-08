@@ -6,8 +6,8 @@ thái bàn từ **Lark Base (Bitable)** qua HTTPS, mặc định tự cập nh�
 
 ## Tính năng
 
-- **14 node tương tác**: 3 node Kỹ thuật `KT1–KT3`, 1 node `BK.X` và 10 node
-  Tư vấn `TV1–TV10`. Khu Tư vấn được dàn 5 cột × 2 hàng; `BK.X` có sức chứa
+- **15 node tương tác**: 3 node Kỹ thuật `KT1–KT3`, 2 node `BK.X`/`BK.X2` và 10 node
+  Tư vấn `TV1–TV10`. Khu Tư vấn được dàn 5 cột × 2 hàng; các node Backup có sức chứa
   hiển thị 5 STT.
 - **Màu trạng thái**: có khách "Tiếp nhận" tại bàn trong `Master` → **Đỏ**,
   ngược lại → **Xanh**. Badge cam = số khách đang chờ (có thể hiện cả trên
@@ -80,7 +80,7 @@ nhận khách, ghi vào **`Master`**. App đọc 5 bảng:
   | `TC1`, `BK11`, `KT1` | `KT1` | `TC1` là mã bàn thật; `KT1` là nhãn giao diện |
   | `TC2`, `BK12`, `KT2` | `KT2` | tương tự |
   | `TC3`, `BK13`, `KT3` | `KT3` | tương tự |
-  | `BK.X` | `BK.X` | node Kỹ thuật riêng, tối đa 5 STT |
+  | `BK.X`, `BK.X2` | cùng mã trong Base | node Kỹ thuật riêng, tối đa 5 STT |
   | `TV1–TV10` | `TV1–TV10` | mã bàn Tư vấn |
   | `BK1–BK10` | `TV1–TV10` | Backup của nhân sự Tư vấn |
 
@@ -150,6 +150,6 @@ Xem `memory.md` để biết lịch sử thay đổi và schema dữ liệu th�
 - `src/services/larkMapper.ts`: chuẩn hóa mã node, điều phối, tiếp nhận, hoàn tất
   và map nhân sự.
 - `src/services/queueMapper.ts`: các trang Tư vấn/Kỹ thuật và STT tiếp theo.
-- `src/config/layoutConfig.ts`: tọa độ 14 node và nhãn KT/TV/BK.X.
+- `src/config/layoutConfig.ts`: tọa độ 15 node và nhãn KT/TV/BK.X/BK.X2.
 - `src/components/ViewSwitcher.tsx`: nút chuyển Main/Tư vấn/Kỹ thuật.
 - `cloudflare-worker.js`: proxy Lark, resolve Wiki token và option value.
