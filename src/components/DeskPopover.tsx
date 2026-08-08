@@ -111,7 +111,7 @@ export default function DeskPopover({ desk, onClose }: DeskPopoverProps) {
                   />
                 </>
               )}
-              <Row label="Tên sản phẩm" value={desk.productName} />
+              {desk.id !== 'BK.X' && <Row label="Tên sản phẩm" value={desk.productName} />}
               <Row label="Ghi chú thanh toán" value={desk.paymentNote} />
             </>
           ) : (
